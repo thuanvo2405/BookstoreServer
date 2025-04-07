@@ -1,5 +1,5 @@
 const HangHoa = require("../models/hangHoa.model");
-
+const db = require("../config/db");
 exports.getAll = async (req, res) => {
   try {
     HangHoa.getAll((err, data) => {

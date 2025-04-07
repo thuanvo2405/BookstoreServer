@@ -48,7 +48,16 @@ exports.create = async (req, res) => {
   };
   const chiTiet = req.body.chiTiet;
 
-  // Kiểm tra chiTiet không rỗng
+  // Kiểm tra dữ liệu đầu vào
+  if (
+    !newPhieuXuat.GhiChu ||
+    !newPhieuXuat.MaNhanVien ||
+    !newPhieuXuat.MaKhachHang
+  ) {
+    return res
+      .status(400)
+      .json({ message: "GhiChu, MaNhanVien, MaKhachHang là bắt buộc" });
+  }
   if (!chiTiet || chiTiet.length === 0) {
     return res
       .status(400)
@@ -93,7 +102,7 @@ exports.create = async (req, res) => {
         throw new Error("Khách hàng không tồn tại");
       }
 
-      // Kiểm tra tồn kho
+      // Kiểm tra và cập nhật tồn kho
       for (const item of chiTiet) {
         const hangHoa = await new Promise((resolve, reject) => {
           HangHoa.getById(item.MaHangHoa, (err, data) =>
@@ -108,6 +117,16 @@ exports.create = async (req, res) => {
             `Hàng hóa ${hangHoa.TenHangHoa} không đủ tồn kho. Hiện có: ${hangHoa.SoLuongTonKho}, yêu cầu: ${item.SoLuong}`
           );
         }
+
+        // Tính toán tồn kho mới
+        const newSoLuongTonKho = hangHoa.SoLuongTonKho - item.SoLuong;
+        await new Promise((resolve, reject) => {
+          HangHoa.update(
+            item.MaHangHoa,
+            { SoLuongTonKho: newSoLuongTonKho },
+            (err) => (err ? reject(err) : resolve())
+          );
+        });
       }
 
       const phieuXuatResult = await new Promise((resolve, reject) => {
@@ -129,14 +148,7 @@ exports.create = async (req, res) => {
                   SoLuong: item.SoLuong,
                   PhuongThucThanhToan: item.PhuongThucThanhToan,
                 },
-                (err) => {
-                  if (err) return reject(err);
-                  HangHoa.update(
-                    item.MaHangHoa,
-                    { SoLuongTonKho: `SoLuongTonKho - ${item.SoLuong}` },
-                    (err) => (err ? reject(err) : resolve())
-                  );
-                }
+                (err) => (err ? reject(err) : resolve())
               );
             })
         )
@@ -187,7 +199,6 @@ exports.delete = async (req, res) => {
       if (err) throw err;
 
       try {
-        // Lấy chi tiết phiếu xuất để hoàn lại tồn kho
         const details = await new Promise((resolve, reject) => {
           PhieuXuatHang.getDetails(id, (err, data) => {
             if (err) reject(err);
@@ -200,16 +211,20 @@ exports.delete = async (req, res) => {
           details.map(
             (item) =>
               new Promise((resolve, reject) => {
-                HangHoa.update(
-                  item.MaHangHoa,
-                  { SoLuongTonKho: `SoLuongTonKho + ${item.SoLuong}` },
-                  (err) => (err ? reject(err) : resolve())
-                );
+                HangHoa.getById(item.MaHangHoa, (err, hangHoa) => {
+                  if (err) return reject(err);
+                  const newSoLuongTonKho =
+                    hangHoa[0].SoLuongTonKho + item.SoLuong;
+                  HangHoa.update(
+                    item.MaHangHoa,
+                    { SoLuongTonKho: newSoLuongTonKho },
+                    (err) => (err ? reject(err) : resolve())
+                  );
+                });
               })
           )
         );
 
-        // Xóa hóa đơn nếu có
         if (phieuXuat.Id_HoaDon) {
           await new Promise((resolve, reject) => {
             HoaDon.delete(phieuXuat.Id_HoaDon, (err, result) => {
@@ -219,7 +234,6 @@ exports.delete = async (req, res) => {
           });
         }
 
-        // Xóa chi tiết phiếu xuất
         await new Promise((resolve, reject) => {
           ChiTietPhieuXuat.deleteByPhieuXuat(id, (err, result) => {
             if (err) reject(err);
@@ -227,7 +241,6 @@ exports.delete = async (req, res) => {
           });
         });
 
-        // Xóa phiếu xuất
         await new Promise((resolve, reject) => {
           PhieuXuatHang.delete(id, (err, result) => {
             if (err) reject(err);

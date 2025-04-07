@@ -1,5 +1,6 @@
 const ChiTietPhieuXuat = require("../models/chiTietPhieuXuat.model");
-
+const PhieuXuatHang = require("../models/phieuXuatHang.model"); // Thêm import
+const HangHoa = require("../models/hangHoa.model"); // Thêm import
 exports.getAll = async (req, res) => {
   try {
     ChiTietPhieuXuat.getAll((err, data) => {
