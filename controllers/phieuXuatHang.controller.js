@@ -10,34 +10,45 @@ exports.getAll = async (req, res) => {
       res.json(data);
     });
   } catch (error) {
-    res
-      .status(500)
-      .json({
-        message: "Lỗi khi lấy danh sách phiếu xuất",
-        error: error.message,
-      });
+    res.status(500).json({
+      message: "Lỗi khi lấy danh sách phiếu xuất",
+      error: error.message,
+    });
   }
 };
 
 exports.getById = async (req, res) => {
   try {
     const id = req.params.id;
+
+    // Kiểm tra xem id có hợp lệ không
+    if (!id || id === "null" || isNaN(id)) {
+      return res.status(400).json({ message: "ID phiếu xuất không hợp lệ" });
+    }
+
     PhieuXuatHang.getById(id, (err, data) => {
-      if (err) throw err;
-      if (!data.length)
+      if (err) {
+        console.error("Database error:", err);
+        throw err; // Ném lỗi để catch block xử lý
+      }
+      if (!data || data.length === 0) {
         return res.status(404).json({ message: "Phiếu xuất không tồn tại" });
+      }
+
       PhieuXuatHang.getDetails(id, (err, details) => {
-        if (err) throw err;
+        if (err) {
+          console.error("Database error in getDetails:", err);
+          throw err;
+        }
         res.json({ ...data[0], chiTiet: details });
       });
     });
   } catch (error) {
-    res
-      .status(500)
-      .json({
-        message: "Lỗi khi lấy thông tin phiếu xuất",
-        error: error.message,
-      });
+    console.error("Error in getById:", error);
+    res.status(500).json({
+      message: "Lỗi khi lấy thông tin phiếu xuất",
+      error: error.message,
+    });
   }
 };
 
@@ -58,22 +69,18 @@ exports.create = async (req, res) => {
     !chiTiet ||
     chiTiet.length === 0
   ) {
-    return res
-      .status(400)
-      .json({
-        message: "MaNhanVien, MaKhachHang và chi tiết phiếu xuất là bắt buộc",
-      });
+    return res.status(400).json({
+      message: "MaNhanVien, MaKhachHang và chi tiết phiếu xuất là bắt buộc",
+    });
   }
 
   // Kiểm tra phương thức thanh toán hợp lệ
   const validPaymentMethods = ["TienMat", "ChuyenKhoan", "The"]; // Ví dụ danh sách hợp lệ
   for (const item of chiTiet) {
     if (!validPaymentMethods.includes(item.PhuongThucThanhToan)) {
-      return res
-        .status(400)
-        .json({
-          message: `Phương thức thanh toán '${item.PhuongThucThanhToan}' không hợp lệ`,
-        });
+      return res.status(400).json({
+        message: `Phương thức thanh toán '${item.PhuongThucThanhToan}' không hợp lệ`,
+      });
     }
     if (!item.MaHangHoa || !item.DonGia || !item.SoLuong) {
       return res
