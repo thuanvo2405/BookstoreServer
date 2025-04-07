@@ -1,10 +1,12 @@
 const express = require("express");
 const app = express();
 const dotenv = require("dotenv");
+const cors = require("cors");
 const swaggerSetup = require("./config/swagger");
 dotenv.config();
 
 app.use(express.json());
+app.use(cors());
 swaggerSetup(app);
 
 const hangHoaRoutes = require("./routes/hangHoa.routes");
