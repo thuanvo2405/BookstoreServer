@@ -1,0 +1,255 @@
+const PhieuXuatHang = require("../models/phieuXuatHang.model");
+const ChiTietPhieuXuat = require("../models/chiTietPhieuXuat.model");
+const HangHoa = require("../models/hangHoa.model");
+const HoaDon = require("../models/hoaDon.model");
+const db = require("../config/db");
+
+exports.getAll = async (req, res) => {
+  try {
+    PhieuXuatHang.getAll((err, data) => {
+      if (err) throw err;
+      res.json(data);
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: "Lỗi khi lấy danh sách phiếu xuất",
+      error: error.message,
+    });
+  }
+};
+
+exports.getById = async (req, res) => {
+  try {
+    const id = req.params.id;
+    PhieuXuatHang.getById(id, (err, data) => {
+      if (err) throw err;
+      if (!data.length)
+        return res.status(404).json({ message: "Phiếu xuất không tồn tại" });
+      PhieuXuatHang.getDetails(id, (err, details) => {
+        if (err) throw err;
+        res.json({ ...data[0], chiTiet: details });
+      });
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: "Lỗi khi lấy thông tin phiếu xuất",
+      error: error.message,
+    });
+  }
+};
+
+exports.create = async (req, res) => {
+  const newPhieuXuat = {
+    NgayXuat: new Date(),
+    GhiChu: req.body.GhiChu,
+    MaNhanVien: req.body.MaNhanVien,
+    MaKhachHang: req.body.MaKhachHang,
+    Id_HoaDon: null,
+  };
+  const chiTiet = req.body.chiTiet;
+
+  // Kiểm tra chiTiet không rỗng
+  if (!chiTiet || chiTiet.length === 0) {
+    return res
+      .status(400)
+      .json({ message: "Danh sách chi tiết phiếu xuất không được rỗng" });
+  }
+
+  db.beginTransaction(async (err) => {
+    if (err) {
+      return res
+        .status(500)
+        .json({ message: "Lỗi giao dịch", error: err.message });
+    }
+
+    try {
+      // Kiểm tra MaNhanVien tồn tại
+      const nhanVien = await new Promise((resolve, reject) => {
+        db.query(
+          "SELECT * FROM NHAN_VIEN WHERE Id_NhanVien = ?",
+          [newPhieuXuat.MaNhanVien],
+          (err, data) => {
+            if (err) reject(err);
+            resolve(data[0]);
+          }
+        );
+      });
+      if (!nhanVien) {
+        throw new Error("Nhân viên không tồn tại");
+      }
+
+      // Kiểm tra MaKhachHang tồn tại
+      const khachHang = await new Promise((resolve, reject) => {
+        db.query(
+          "SELECT * FROM KHACH_HANG WHERE Id_KhachHang = ?",
+          [newPhieuXuat.MaKhachHang],
+          (err, data) => {
+            if (err) reject(err);
+            resolve(data[0]);
+          }
+        );
+      });
+      if (!khachHang) {
+        throw new Error("Khách hàng không tồn tại");
+      }
+
+      // Kiểm tra tồn kho
+      for (const item of chiTiet) {
+        const hangHoa = await new Promise((resolve, reject) => {
+          HangHoa.getById(item.MaHangHoa, (err, data) =>
+            err ? reject(err) : resolve(data[0])
+          );
+        });
+        if (!hangHoa) {
+          throw new Error(`Hàng hóa với Id ${item.MaHangHoa} không tồn tại`);
+        }
+        if (hangHoa.SoLuongTonKho < item.SoLuong) {
+          throw new Error(
+            `Hàng hóa ${hangHoa.TenHangHoa} không đủ tồn kho. Hiện có: ${hangHoa.SoLuongTonKho}, yêu cầu: ${item.SoLuong}`
+          );
+        }
+      }
+
+      const phieuXuatResult = await new Promise((resolve, reject) => {
+        PhieuXuatHang.create(newPhieuXuat, (err, result) =>
+          err ? reject(err) : resolve(result)
+        );
+      });
+      const idPhieuXuat = phieuXuatResult.insertId;
+
+      await Promise.all(
+        chiTiet.map(
+          (item) =>
+            new Promise((resolve, reject) => {
+              ChiTietPhieuXuat.create(
+                {
+                  MaPhieuXuat: idPhieuXuat,
+                  MaHangHoa: item.MaHangHoa,
+                  DonGia: item.DonGia,
+                  SoLuong: item.SoLuong,
+                  PhuongThucThanhToan: item.PhuongThucThanhToan,
+                },
+                (err) => {
+                  if (err) return reject(err);
+                  HangHoa.update(
+                    item.MaHangHoa,
+                    { SoLuongTonKho: `SoLuongTonKho - ${item.SoLuong}` },
+                    (err) => (err ? reject(err) : resolve())
+                  );
+                }
+              );
+            })
+        )
+      );
+
+      await new Promise((resolve, reject) => {
+        db.commit((err) => (err ? reject(err) : resolve()));
+      });
+      res.status(201).json({ Id_PhieuXuat: idPhieuXuat, ...newPhieuXuat });
+    } catch (error) {
+      await new Promise((resolve) => db.rollback(resolve));
+      res.status(400).json({ message: error.message });
+    }
+  });
+};
+
+exports.update = async (req, res) => {
+  try {
+    const id = req.params.id;
+    const updatedData = req.body;
+    PhieuXuatHang.update(id, updatedData, (err, result) => {
+      if (err) throw err;
+      if (result.affectedRows === 0)
+        return res.status(404).json({ message: "Phiếu xuất không tồn tại" });
+      res.json({ message: "Cập nhật phiếu xuất thành công" });
+    });
+  } catch (error) {
+    res
+      .status(500)
+      .json({ message: "Lỗi khi cập nhật phiếu xuất", error: error.message });
+  }
+};
+
+exports.delete = async (req, res) => {
+  try {
+    const id = req.params.id;
+
+    const phieuXuat = await new Promise((resolve, reject) => {
+      PhieuXuatHang.getById(id, (err, data) => {
+        if (err) reject(err);
+        resolve(data[0]);
+      });
+    });
+    if (!phieuXuat)
+      return res.status(404).json({ message: "Phiếu xuất không tồn tại" });
+
+    db.beginTransaction(async (err) => {
+      if (err) throw err;
+
+      try {
+        // Lấy chi tiết phiếu xuất để hoàn lại tồn kho
+        const details = await new Promise((resolve, reject) => {
+          PhieuXuatHang.getDetails(id, (err, data) => {
+            if (err) reject(err);
+            resolve(data);
+          });
+        });
+
+        // Hoàn lại tồn kho
+        await Promise.all(
+          details.map(
+            (item) =>
+              new Promise((resolve, reject) => {
+                HangHoa.update(
+                  item.MaHangHoa,
+                  { SoLuongTonKho: `SoLuongTonKho + ${item.SoLuong}` },
+                  (err) => (err ? reject(err) : resolve())
+                );
+              })
+          )
+        );
+
+        // Xóa hóa đơn nếu có
+        if (phieuXuat.Id_HoaDon) {
+          await new Promise((resolve, reject) => {
+            HoaDon.delete(phieuXuat.Id_HoaDon, (err, result) => {
+              if (err) reject(err);
+              resolve(result);
+            });
+          });
+        }
+
+        // Xóa chi tiết phiếu xuất
+        await new Promise((resolve, reject) => {
+          ChiTietPhieuXuat.deleteByPhieuXuat(id, (err, result) => {
+            if (err) reject(err);
+            resolve(result);
+          });
+        });
+
+        // Xóa phiếu xuất
+        await new Promise((resolve, reject) => {
+          PhieuXuatHang.delete(id, (err, result) => {
+            if (err) reject(err);
+            resolve(result);
+          });
+        });
+
+        db.commit((err) => {
+          if (err) throw err;
+          res.json({ message: "Xóa phiếu xuất và chi tiết thành công" });
+        });
+      } catch (error) {
+        db.rollback(() => {
+          res
+            .status(500)
+            .json({ message: "Lỗi khi xóa phiếu xuất", error: error.message });
+        });
+      }
+    });
+  } catch (error) {
+    res
+      .status(500)
+      .json({ message: "Lỗi khi xóa phiếu xuất", error: error.message });
+  }
+};
