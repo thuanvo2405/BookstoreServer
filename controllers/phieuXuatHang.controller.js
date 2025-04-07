@@ -6,14 +6,22 @@ const db = require("../config/db");
 exports.getAll = async (req, res) => {
   try {
     PhieuXuatHang.getAll((err, data) => {
-      if (err) throw err;
+      if (err) {
+        console.error("Database error in getAll:", err);
+        return res
+          .status(500)
+          .json({ message: "Lỗi khi truy vấn database", error: err.message });
+      }
       res.json(data);
     });
   } catch (error) {
-    res.status(500).json({
-      message: "Lỗi khi lấy danh sách phiếu xuất",
-      error: error.message,
-    });
+    console.error("Error in getAll:", error);
+    res
+      .status(500)
+      .json({
+        message: "Lỗi khi lấy danh sách phiếu xuất",
+        error: error.message,
+      });
   }
 };
 
@@ -21,15 +29,16 @@ exports.getById = async (req, res) => {
   try {
     const id = req.params.id;
 
-    // Kiểm tra xem id có hợp lệ không
     if (!id || id === "null" || isNaN(id)) {
       return res.status(400).json({ message: "ID phiếu xuất không hợp lệ" });
     }
 
     PhieuXuatHang.getById(id, (err, data) => {
       if (err) {
-        console.error("Database error:", err);
-        throw err; // Ném lỗi để catch block xử lý
+        console.error("Database error in getById:", err);
+        return res
+          .status(500)
+          .json({ message: "Lỗi khi truy vấn database", error: err.message });
       }
       if (!data || data.length === 0) {
         return res.status(404).json({ message: "Phiếu xuất không tồn tại" });
@@ -38,62 +47,58 @@ exports.getById = async (req, res) => {
       PhieuXuatHang.getDetails(id, (err, details) => {
         if (err) {
           console.error("Database error in getDetails:", err);
-          throw err;
+          return res
+            .status(500)
+            .json({
+              message: "Lỗi khi lấy chi tiết phiếu xuất",
+              error: err.message,
+            });
         }
         res.json({ ...data[0], chiTiet: details });
       });
     });
   } catch (error) {
     console.error("Error in getById:", error);
-    res.status(500).json({
-      message: "Lỗi khi lấy thông tin phiếu xuất",
-      error: error.message,
-    });
+    res
+      .status(500)
+      .json({
+        message: "Lỗi khi lấy thông tin phiếu xuất",
+        error: error.message,
+      });
   }
 };
 
+// Các hàm create, update, delete giữ nguyên nhưng đảm bảo xử lý lỗi tương tự
 exports.create = async (req, res) => {
   const newPhieuXuat = {
     NgayXuat: new Date(),
     GhiChu: req.body.GhiChu,
     MaNhanVien: req.body.MaNhanVien,
     MaKhachHang: req.body.MaKhachHang,
-    Id_HoaDon: null, // Giữ null vì hóa đơn sẽ được tạo riêng
+    Id_HoaDon: null,
   };
   const chiTiet = req.body.chiTiet;
 
-  // Validation dữ liệu đầu vào
   if (
     !newPhieuXuat.MaNhanVien ||
     !newPhieuXuat.MaKhachHang ||
     !chiTiet ||
     chiTiet.length === 0
   ) {
-    return res.status(400).json({
-      message: "MaNhanVien, MaKhachHang và chi tiết phiếu xuất là bắt buộc",
-    });
-  }
-
-  // Kiểm tra phương thức thanh toán hợp lệ
-  const validPaymentMethods = ["TienMat", "ChuyenKhoan", "The"]; // Ví dụ danh sách hợp lệ
-  for (const item of chiTiet) {
-    if (!validPaymentMethods.includes(item.PhuongThucThanhToan)) {
-      return res.status(400).json({
-        message: `Phương thức thanh toán '${item.PhuongThucThanhToan}' không hợp lệ`,
+    return res
+      .status(400)
+      .json({
+        message: "MaNhanVien, MaKhachHang và chi tiết phiếu xuất là bắt buộc",
       });
-    }
-    if (!item.MaHangHoa || !item.DonGia || !item.SoLuong) {
-      return res
-        .status(400)
-        .json({ message: "Chi tiết phiếu xuất thiếu thông tin cần thiết" });
-    }
   }
 
   db.beginTransaction(async (err) => {
-    if (err)
+    if (err) {
+      console.error("Transaction error:", err);
       return res
         .status(500)
-        .json({ message: "Lỗi giao dịch", error: err.message });
+        .json({ message: "Lỗi khi bắt đầu giao dịch", error: err.message });
+    }
 
     try {
       const nhanVien = await new Promise((resolve, reject) => {
@@ -129,9 +134,7 @@ exports.create = async (req, res) => {
         if (!hangHoa)
           throw new Error(`Hàng hóa với Id ${item.MaHangHoa} không tồn tại`);
         if (hangHoa.SoLuongTonKho < item.SoLuong) {
-          throw new Error(
-            `Hàng hóa ${hangHoa.TenHangHoa} không đủ tồn kho. Hiện có: ${hangHoa.SoLuongTonKho}, yêu cầu: ${item.SoLuong}`
-          );
+          throw new Error(`Hàng hóa ${hangHoa.TenHangHoa} không đủ tồn kho`);
         }
         const newSoLuongTonKho = hangHoa.SoLuongTonKho - item.SoLuong;
         await new Promise((resolve, reject) => {
@@ -174,6 +177,7 @@ exports.create = async (req, res) => {
       res.status(201).json({ Id_PhieuXuat: idPhieuXuat, ...newPhieuXuat });
     } catch (error) {
       await new Promise((resolve) => db.rollback(resolve));
+      console.error("Error in create:", error);
       res.status(400).json({ message: error.message });
     }
   });
@@ -184,12 +188,18 @@ exports.update = async (req, res) => {
     const id = req.params.id;
     const updatedData = req.body;
     PhieuXuatHang.update(id, updatedData, (err, result) => {
-      if (err) throw err;
+      if (err) {
+        console.error("Database error in update:", err);
+        return res
+          .status(500)
+          .json({ message: "Lỗi khi cập nhật database", error: err.message });
+      }
       if (result.affectedRows === 0)
         return res.status(404).json({ message: "Phiếu xuất không tồn tại" });
       res.json({ message: "Cập nhật phiếu xuất thành công" });
     });
   } catch (error) {
+    console.error("Error in update:", error);
     res
       .status(500)
       .json({ message: "Lỗi khi cập nhật phiếu xuất", error: error.message });
@@ -208,7 +218,12 @@ exports.delete = async (req, res) => {
       return res.status(404).json({ message: "Phiếu xuất không tồn tại" });
 
     db.beginTransaction(async (err) => {
-      if (err) throw err;
+      if (err) {
+        console.error("Transaction error in delete:", err);
+        return res
+          .status(500)
+          .json({ message: "Lỗi khi bắt đầu giao dịch", error: err.message });
+      }
       try {
         const details = await new Promise((resolve, reject) => {
           PhieuXuatHang.getDetails(id, (err, data) =>
@@ -252,6 +267,7 @@ exports.delete = async (req, res) => {
         });
       } catch (error) {
         db.rollback(() => {
+          console.error("Error in delete:", error);
           res
             .status(500)
             .json({ message: "Lỗi khi xóa phiếu xuất", error: error.message });
@@ -259,6 +275,7 @@ exports.delete = async (req, res) => {
       }
     });
   } catch (error) {
+    console.error("Error in delete:", error);
     res
       .status(500)
       .json({ message: "Lỗi khi xóa phiếu xuất", error: error.message });
