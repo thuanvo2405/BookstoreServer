@@ -16,12 +16,10 @@ exports.getAll = async (req, res) => {
     });
   } catch (error) {
     console.error("Error in getAll:", error);
-    res
-      .status(500)
-      .json({
-        message: "Lỗi khi lấy danh sách phiếu xuất",
-        error: error.message,
-      });
+    res.status(500).json({
+      message: "Lỗi khi lấy danh sách phiếu xuất",
+      error: error.message,
+    });
   }
 };
 
@@ -85,11 +83,9 @@ exports.create = async (req, res) => {
     !chiTiet ||
     chiTiet.length === 0
   ) {
-    return res
-      .status(400)
-      .json({
-        message: "MaNhanVien, MaKhachHang và chi tiết phiếu xuất là bắt buộc",
-      });
+    return res.status(400).json({
+      message: "MaNhanVien, MaKhachHang và chi tiết phiếu xuất là bắt buộc",
+    });
   }
 
   db.beginTransaction(async (err) => {
