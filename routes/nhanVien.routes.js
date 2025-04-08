@@ -1,65 +1,14 @@
 const express = require("express");
 const router = express.Router();
 const controller = require("../controllers/nhanVien.controller");
+const { authenticateToken, authorizeAdmin } = require("../middleware/auth");
 
-router.get("/", controller.getAll);
+router.post("/login", controller.login);
 /**
  * @swagger
- * /api/nhanvien:
- *   get:
- *     summary: Lấy danh sách tất cả nhân viên
- *     responses:
- *       200:
- *         description: Danh sách nhân viên
- *         content:
- *           application/json:
- *             schema:
- *               type: array
- *               items:
- *                 type: object
- *                 properties:
- *                   Id_NhanVien:
- *                     type: integer
- *                   TaiKhoan:
- *                     type: string
- *                   ChucVu:
- *                     type: string
- *                   SoDienThoai:
- *                     type: string
- *                   Email:
- *                     type: string
- *                   Luong:
- *                     type: number
- *                   NgayVaoLam:
- *                     type: string
- *                     format: date
- *                   TrangThai:
- *                     type: boolean
- */
-
-router.get("/:id", controller.getById);
-/**
- * @swagger
- * /api/nhanvien/{id}:
- *   get:
- *     summary: Lấy thông tin nhân viên theo ID
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: integer
- *     responses:
- *       200:
- *         description: Thông tin nhân viên
- */
-
-router.post("/", controller.create);
-/**
- * @swagger
- * /api/nhanvien:
+ * /api/nhanvien/login:
  *   post:
- *     summary: Tạo mới một nhân viên
+ *     summary: Đăng nhập nhân viên
  *     requestBody:
  *       required: true
  *       content:
@@ -67,64 +16,46 @@ router.post("/", controller.create);
  *           schema:
  *             type: object
  *             properties:
- *               TaiKhoan:
- *                 type: string
- *               ChucVu:
- *                 type: string
- *               SoDienThoai:
- *                 type: string
  *               Email:
  *                 type: string
- *               Luong:
- *                 type: number
- *               NgayVaoLam:
+ *               MatKhau:
  *                 type: string
- *                 format: date
- *               TrangThai:
- *                 type: boolean
- *     responses:
- *       201:
- *         description: Nhân viên được tạo
- */
-
-router.put("/:id", controller.update);
-/**
- * @swagger
- * /api/nhanvien/{id}:
- *   put:
- *     summary: Cập nhật thông tin nhân viên
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: integer
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
  *     responses:
  *       200:
- *         description: Cập nhật thành công
+ *         description: Đăng nhập thành công, trả về token
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                 token:
+ *                   type: string
  */
 
-router.delete("/:id", controller.delete);
+router.post("/logout", authenticateToken, controller.logout);
 /**
  * @swagger
- * /api/nhanvien/{id}:
- *   delete:
- *     summary: Xóa một nhân viên
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: integer
+ * /api/nhanvien/logout:
+ *   post:
+ *     summary: Đăng xuất nhân viên
+ *     security:
+ *       - bearerAuth: []
  *     responses:
  *       200:
- *         description: Xóa thành công
+ *         description: Đăng xuất thành công
  */
+
+// Áp dụng middleware xác thực cho tất cả các route bên dưới
+router.use(authenticateToken);
+
+router.get("/", controller.getAll);
+router.get("/:id", controller.getById);
+
+// Chỉ Admin mới được tạo, cập nhật, xóa
+router.post("/", authorizeAdmin, controller.create);
+router.put("/:id", authorizeAdmin, controller.update);
+router.delete("/:id", authorizeAdmin, controller.delete);
 
 module.exports = router;

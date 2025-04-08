@@ -1,19 +1,32 @@
-const swaggerJSDoc = require("swagger-jsdoc");
+const swaggerJsDoc = require("swagger-jsdoc");
 const swaggerUi = require("swagger-ui-express");
 
 const swaggerOptions = {
-  definition: {
+  swaggerDefinition: {
     openapi: "3.0.0",
     info: {
-      title: "API Documentation",
+      title: "API Quản lý Kho",
       version: "1.0.0",
-      description: "API documentation using Swagger",
     },
+    components: {
+      securitySchemes: {
+        bearerAuth: {
+          type: "http",
+          scheme: "bearer",
+          bearerFormat: "JWT",
+        },
+      },
+    },
+    security: [
+      {
+        bearerAuth: [],
+      },
+    ],
   },
-  apis: ["./routes/*.js"], // Đường dẫn tới các file chứa API routes
+  apis: ["./routes/*.js"],
 };
 
-const swaggerDocs = swaggerJSDoc(swaggerOptions);
+const swaggerDocs = swaggerJsDoc(swaggerOptions);
 
 module.exports = (app) => {
   app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerDocs));
