@@ -2,6 +2,7 @@ const express = require("express");
 const router = express.Router();
 const controller = require("../controllers/nhanVien.controller");
 const { authenticateToken, authorizeAdmin } = require("../middleware/auth");
+router.use(authenticateToken);
 
 router.post("/login", controller.login);
 /**
@@ -48,14 +49,13 @@ router.post("/logout", authenticateToken, controller.logout);
  */
 
 // Áp dụng middleware xác thực cho tất cả các route bên dưới
-router.use(authenticateToken);
 
 router.get("/", controller.getAll);
 router.get("/:id", controller.getById);
 
 // Chỉ Admin mới được tạo, cập nhật, xóa
-router.post("/", authorizeAdmin, controller.create);
-router.put("/:id", authorizeAdmin, controller.update);
-router.delete("/:id", authorizeAdmin, controller.delete);
+router.post("/", controller.create);
+router.put("/:id", controller.update);
+router.delete("/:id", controller.delete);
 
 module.exports = router;
