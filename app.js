@@ -24,7 +24,7 @@ app.use("/api/nhasanxuat", nhaSanXuatRoutes);
 app.use("/api/phieuxuathang", phieuXuatHangRoutes);
 app.use("/api/hoadon", hoaDonRoutes);
 app.use("/api/chitietphieuxuat", chiTietPhieuXuatRoutes);
-app.use(" /api/nhanvien", nhanVienRoutes);
+app.use("/api/nhanvien", nhanVienRoutes);
 app.use("/api/khachhang", khachHangRoutes);
 
 const PORT = process.env.PORT || 3000;
