@@ -1,9 +1,10 @@
+// nhanVien.routes.js
 const express = require("express");
 const router = express.Router();
 const controller = require("../controllers/nhanVien.controller");
 const { authenticateToken, authorizeAdmin } = require("../middleware/auth");
-router.use(authenticateToken);
 
+// Tuyến đăng nhập - không cần authenticateToken
 router.post("/login", controller.login);
 /**
  * @swagger
@@ -35,6 +36,7 @@ router.post("/login", controller.login);
  *                   type: string
  */
 
+// Tuyến đăng xuất - yêu cầu authenticateToken
 router.post("/logout", authenticateToken, controller.logout);
 /**
  * @swagger
@@ -48,12 +50,9 @@ router.post("/logout", authenticateToken, controller.logout);
  *         description: Đăng xuất thành công
  */
 
-// Áp dụng middleware xác thực cho tất cả các route bên dưới
-
+// Các tuyến khác không yêu cầu xác thực
 router.get("/", controller.getAll);
 router.get("/:id", controller.getById);
-
-// Chỉ Admin mới được tạo, cập nhật, xóa
 router.post("/", controller.create);
 router.put("/:id", controller.update);
 router.delete("/:id", controller.delete);
