@@ -88,88 +88,72 @@ exports.create = async (req, res) => {
 
   let connection;
   try {
-    // Lấy connection từ pool
     connection = await db.getConnection();
 
-    // Bắt đầu transaction
     await connection.beginTransaction();
 
     // Kiểm tra nhân viên
-    const nhanVien = await new Promise((resolve, reject) => {
-      connection.query(
-        "SELECT * FROM NHAN_VIEN WHERE Id_NhanVien = ?",
-        [newPhieuXuat.MaNhanVien],
-        (err, data) => (err ? reject(err) : resolve(data[0]))
-      );
-    });
-    if (!nhanVien)
+    const [nhanVien] = await connection.query(
+      "SELECT * FROM NHAN_VIEN WHERE Id_NhanVien = ?",
+      [newPhieuXuat.MaNhanVien]
+    );
+    if (!nhanVien.length) {
       throw new Error(
         `Nhân viên với ID ${newPhieuXuat.MaNhanVien} không tồn tại`
       );
+    }
 
     // Kiểm tra khách hàng
-    const khachHang = await new Promise((resolve, reject) => {
-      connection.query(
-        "SELECT * FROM KHACH_HANG WHERE Id_KhachHang = ?",
-        [newPhieuXuat.MaKhachHang],
-        (err, data) => (err ? reject(err) : resolve(data[0]))
-      );
-    });
-    if (!khachHang)
+    const [khachHang] = await connection.query(
+      "SELECT * FROM KHACH_HANG WHERE Id_KhachHang = ?",
+      [newPhieuXuat.MaKhachHang]
+    );
+    if (!khachHang.length) {
       throw new Error(
         `Khách hàng với ID ${newPhieuXuat.MaKhachHang} không tồn tại`
       );
+    }
 
     // Kiểm tra và cập nhật hàng hóa
     for (const item of chiTiet) {
-      const hangHoa = await new Promise((resolve, reject) => {
-        HangHoa.getById(item.MaHangHoa, (err, data) =>
-          err ? reject(err) : resolve(data[0])
-        );
-      });
-      if (!hangHoa)
+      const [hangHoa] = await connection.query(
+        "SELECT * FROM HANG_HOA WHERE Id_HangHoa = ?",
+        [item.MaHangHoa]
+      );
+      if (!hangHoa.length) {
         throw new Error(`Hàng hóa với ID ${item.MaHangHoa} không tồn tại`);
-      if (hangHoa.SoLuongTonKho < item.SoLuong) {
-        throw new Error(`Hàng hóa ${hangHoa.TenHangHoa} không đủ tồn kho`);
       }
-      const newSoLuongTonKho = hangHoa.SoLuongTonKho - item.SoLuong;
-      await new Promise((resolve, reject) => {
-        connection.query(
-          "UPDATE HANG_HOA SET SoLuongTonKho = ? WHERE Id_HangHoa = ?",
-          [newSoLuongTonKho, item.MaHangHoa],
-          (err) => (err ? reject(err) : resolve())
-        );
-      });
+      if (hangHoa[0].SoLuongTonKho < item.SoLuong) {
+        throw new Error(`Hàng hóa ${hangHoa[0].TenHangHoa} không đủ tồn kho`);
+      }
+      const newSoLuongTonKho = hangHoa[0].SoLuongTonKho - item.SoLuong;
+      await connection.query(
+        "UPDATE HANG_HOA SET SoLuongTonKho = ? WHERE Id_HangHoa = ?",
+        [newSoLuongTonKho, item.MaHangHoa]
+      );
     }
 
     // Tạo phiếu xuất
-    const phieuXuatResult = await new Promise((resolve, reject) => {
-      PhieuXuatHang.create(newPhieuXuat, (err, result) =>
-        err ? reject(err) : resolve(result)
-      );
-    });
+    const [phieuXuatResult] = await connection.query(
+      "INSERT INTO PHIEU_XUAT SET ?",
+      newPhieuXuat
+    );
     const idPhieuXuat = phieuXuatResult.insertId;
 
     // Tạo chi tiết phiếu xuất
-    await Promise.all(
-      chiTiet.map(
-        (item) =>
-          new Promise((resolve, reject) => {
-            ChiTietPhieuXuat.create(
-              {
-                MaPhieuXuat: idPhieuXuat,
-                MaHangHoa: item.MaHangHoa,
-                DonGia: item.DonGia,
-                SoLuong: item.SoLuong,
-                PhuongThucThanhToan: item.PhuongThucThanhToan,
-              },
-              (err) => (err ? reject(err) : resolve())
-            );
-          })
-      )
-    );
+    for (const item of chiTiet) {
+      await connection.query(
+        "INSERT INTO CHI_TIET_PHIEU_XUAT (MaPhieuXuat, MaHangHoa, DonGia, SoLuong, PhuongThucThanhToan) VALUES (?, ?, ?, ?, ?)",
+        [
+          idPhieuXuat,
+          item.MaHangHoa,
+          item.DonGia,
+          item.SoLuong,
+          item.PhuongThucThanhToan,
+        ]
+      );
+    }
 
-    // Commit transaction
     await connection.commit();
     res.status(201).json({ Id_PhieuXuat: idPhieuXuat, ...newPhieuXuat });
   } catch (error) {
@@ -179,7 +163,7 @@ exports.create = async (req, res) => {
       .status(500)
       .json({ message: "Lỗi khi tạo phiếu xuất", error: error.message });
   } finally {
-    if (connection) connection.release(); // Trả connection về pool
+    if (connection) connection.release();
   }
 };
 
