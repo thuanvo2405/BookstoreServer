@@ -63,7 +63,7 @@ exports.getById = async (req, res) => {
 };
 
 // Các hàm create, update, delete giữ nguyên nhưng đảm bảo xử lý lỗi tương tự
-exports.create = async (req, res) => {
+exports.create = (req, res) => {
   const newPhieuXuat = {
     NgayXuat: new Date(),
     GhiChu: req.body.GhiChu,
@@ -86,86 +86,185 @@ exports.create = async (req, res) => {
 
   console.log("Starting transaction with data:", newPhieuXuat, chiTiet);
 
-  let connection;
-  try {
-    connection = await db.getConnection();
-
-    await connection.beginTransaction();
-
-    // Kiểm tra nhân viên
-    const [nhanVien] = await connection.query(
-      "SELECT * FROM NHAN_VIEN WHERE Id_NhanVien = ?",
-      [newPhieuXuat.MaNhanVien]
-    );
-    if (!nhanVien.length) {
-      throw new Error(
-        `Nhân viên với ID ${newPhieuXuat.MaNhanVien} không tồn tại`
-      );
+  db.getConnection((err, connection) => {
+    if (err) {
+      console.error("Lỗi lấy connection:", err);
+      return res
+        .status(500)
+        .json({ message: "Lỗi kết nối database", error: err.message });
     }
 
-    // Kiểm tra khách hàng
-    const [khachHang] = await connection.query(
-      "SELECT * FROM KHACH_HANG WHERE Id_KhachHang = ?",
-      [newPhieuXuat.MaKhachHang]
-    );
-    if (!khachHang.length) {
-      throw new Error(
-        `Khách hàng với ID ${newPhieuXuat.MaKhachHang} không tồn tại`
-      );
-    }
-
-    // Kiểm tra và cập nhật hàng hóa
-    for (const item of chiTiet) {
-      const [hangHoa] = await connection.query(
-        "SELECT * FROM HANG_HOA WHERE Id_HangHoa = ?",
-        [item.MaHangHoa]
-      );
-      if (!hangHoa.length) {
-        throw new Error(`Hàng hóa với ID ${item.MaHangHoa} không tồn tại`);
+    connection.beginTransaction((err) => {
+      if (err) {
+        connection.release();
+        return res
+          .status(500)
+          .json({ message: "Lỗi bắt đầu transaction", error: err.message });
       }
-      if (hangHoa[0].SoLuongTonKho < item.SoLuong) {
-        throw new Error(`Hàng hóa ${hangHoa[0].TenHangHoa} không đủ tồn kho`);
-      }
-      const newSoLuongTonKho = hangHoa[0].SoLuongTonKho - item.SoLuong;
-      await connection.query(
-        "UPDATE HANG_HOA SET SoLuongTonKho = ? WHERE Id_HangHoa = ?",
-        [newSoLuongTonKho, item.MaHangHoa]
+
+      // Kiểm tra nhân viên
+      connection.query(
+        "SELECT * FROM NHAN_VIEN WHERE Id_NhanVien = ?",
+        [newPhieuXuat.MaNhanVien],
+        (err, nhanVien) => {
+          if (err) {
+            return rollbackAndRelease(
+              connection,
+              res,
+              "Lỗi kiểm tra nhân viên",
+              err
+            );
+          }
+          if (!nhanVien.length) {
+            return rollbackAndRelease(
+              connection,
+              res,
+              `Nhân viên với ID ${newPhieuXuat.MaNhanVien} không tồn tại`
+            );
+          }
+
+          // Kiểm tra khách hàng
+          connection.query(
+            "SELECT * FROM KHACH_HANG WHERE Id_KhachHang = ?",
+            [newPhieuXuat.MaKhachHang],
+            (err, khachHang) => {
+              if (err) {
+                return rollbackAndRelease(
+                  connection,
+                  res,
+                  "Lỗi kiểm tra khách hàng",
+                  err
+                );
+              }
+              if (!khachHang.length) {
+                return rollbackAndRelease(
+                  connection,
+                  res,
+                  `Khách hàng với ID ${newPhieuXuat.MaKhachHang} không tồn tại`
+                );
+              }
+
+              // Kiểm tra và cập nhật hàng hóa
+              let completedItems = 0;
+              chiTiet.forEach((item, index) => {
+                HangHoa.getById(item.MaHangHoa, (err, hangHoa) => {
+                  if (err) {
+                    return rollbackAndRelease(
+                      connection,
+                      res,
+                      "Lỗi kiểm tra hàng hóa",
+                      err
+                    );
+                  }
+                  if (!hangHoa) {
+                    return rollbackAndRelease(
+                      connection,
+                      res,
+                      `Hàng hóa với ID ${item.MaHangHoa} không tồn tại`
+                    );
+                  }
+                  if (hangHoa.SoLuongTonKho < item.SoLuong) {
+                    return rollbackAndRelease(
+                      connection,
+                      res,
+                      `Hàng hóa ${hangHoa.TenHangHoa} không đủ tồn kho`
+                    );
+                  }
+
+                  const newSoLuongTonKho = hangHoa.SoLuongTonKho - item.SoLuong;
+                  connection.query(
+                    "UPDATE HANG_HOA SET SoLuongTonKho = ? WHERE Id_HangHoa = ?",
+                    [newSoLuongTonKho, item.MaHangHoa],
+                    (err) => {
+                      if (err) {
+                        return rollbackAndRelease(
+                          connection,
+                          res,
+                          "Lỗi cập nhật hàng hóa",
+                          err
+                        );
+                      }
+
+                      completedItems++;
+                      if (completedItems === chiTiet.length) {
+                        // Tạo phiếu xuất
+                        PhieuXuatHang.create(newPhieuXuat, (err, result) => {
+                          if (err) {
+                            return rollbackAndRelease(
+                              connection,
+                              res,
+                              "Lỗi tạo phiếu xuất",
+                              err
+                            );
+                          }
+                          const idPhieuXuat = result.insertId;
+
+                          // Tạo chi tiết phiếu xuất
+                          let completedDetails = 0;
+                          chiTiet.forEach((detail) => {
+                            ChiTietPhieuXuat.create(
+                              {
+                                MaPhieuXuat: idPhieuXuat,
+                                MaHangHoa: detail.MaHangHoa,
+                                DonGia: detail.DonGia,
+                                SoLuong: detail.SoLuong,
+                                PhuongThucThanhToan: detail.PhuongThucThanhToan,
+                              },
+                              (err) => {
+                                if (err) {
+                                  return rollbackAndRelease(
+                                    connection,
+                                    res,
+                                    "Lỗi tạo chi tiết phiếu xuất",
+                                    err
+                                  );
+                                }
+
+                                completedDetails++;
+                                if (completedDetails === chiTiet.length) {
+                                  connection.commit((err) => {
+                                    if (err) {
+                                      return rollbackAndRelease(
+                                        connection,
+                                        res,
+                                        "Lỗi commit transaction",
+                                        err
+                                      );
+                                    }
+                                    connection.release();
+                                    res
+                                      .status(201)
+                                      .json({
+                                        Id_PhieuXuat: idPhieuXuat,
+                                        ...newPhieuXuat,
+                                      });
+                                  });
+                                }
+                              }
+                            );
+                          });
+                        });
+                      }
+                    }
+                  );
+                });
+              });
+            }
+          );
+        }
       );
-    }
-
-    // Tạo phiếu xuất
-    const [phieuXuatResult] = await connection.query(
-      "INSERT INTO PHIEU_XUAT SET ?",
-      newPhieuXuat
-    );
-    const idPhieuXuat = phieuXuatResult.insertId;
-
-    // Tạo chi tiết phiếu xuất
-    for (const item of chiTiet) {
-      await connection.query(
-        "INSERT INTO CHI_TIET_PHIEU_XUAT (MaPhieuXuat, MaHangHoa, DonGia, SoLuong, PhuongThucThanhToan) VALUES (?, ?, ?, ?, ?)",
-        [
-          idPhieuXuat,
-          item.MaHangHoa,
-          item.DonGia,
-          item.SoLuong,
-          item.PhuongThucThanhToan,
-        ]
-      );
-    }
-
-    await connection.commit();
-    res.status(201).json({ Id_PhieuXuat: idPhieuXuat, ...newPhieuXuat });
-  } catch (error) {
-    console.error("Transaction error:", error);
-    if (connection) await connection.rollback();
-    return res
-      .status(500)
-      .json({ message: "Lỗi khi tạo phiếu xuất", error: error.message });
-  } finally {
-    if (connection) connection.release();
-  }
+    });
+  });
 };
+
+// Hàm hỗ trợ để rollback và release connection
+function rollbackAndRelease(connection, res, message, error) {
+  connection.rollback(() => {
+    connection.release();
+    console.error(`${message}:`, error);
+    res.status(500).json({ message, error: error ? error.message : undefined });
+  });
+}
 
 exports.update = async (req, res) => {
   try {
