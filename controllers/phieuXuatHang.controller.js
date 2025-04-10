@@ -85,7 +85,7 @@ exports.create = async (req, res) => {
       message: "MaNhanVien, MaKhachHang và chi tiết phiếu xuất là bắt buộc",
     });
   }
-
+  console.log("Starting transaction with data:", newPhieuXuat, chiTiet);
   db.beginTransaction(async (err) => {
     if (err) {
       console.error("Transaction error:", err);
