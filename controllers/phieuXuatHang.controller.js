@@ -102,19 +102,17 @@ exports.create = (req, res) => {
           .json({ message: "Lỗi bắt đầu transaction", error: err.message });
       }
 
-      // Kiểm tra nhân viên
       connection.query(
         "SELECT * FROM NHAN_VIEN WHERE Id_NhanVien = ?",
         [newPhieuXuat.MaNhanVien],
         (err, nhanVien) => {
-          if (err) {
+          if (err)
             return rollbackAndRelease(
               connection,
               res,
               "Lỗi kiểm tra nhân viên",
               err
             );
-          }
           if (!nhanVien.length) {
             return rollbackAndRelease(
               connection,
@@ -123,19 +121,17 @@ exports.create = (req, res) => {
             );
           }
 
-          // Kiểm tra khách hàng
           connection.query(
             "SELECT * FROM KHACH_HANG WHERE Id_KhachHang = ?",
             [newPhieuXuat.MaKhachHang],
             (err, khachHang) => {
-              if (err) {
+              if (err)
                 return rollbackAndRelease(
                   connection,
                   res,
                   "Lỗi kiểm tra khách hàng",
                   err
                 );
-              }
               if (!khachHang.length) {
                 return rollbackAndRelease(
                   connection,
@@ -144,7 +140,6 @@ exports.create = (req, res) => {
                 );
               }
 
-              // Kiểm tra và cập nhật hàng hóa
               let completedItems = 0;
               chiTiet.forEach((item, index) => {
                 HangHoa.getById(item.MaHangHoa, (err, hangHoa) => {
@@ -163,7 +158,17 @@ exports.create = (req, res) => {
                       `Hàng hóa với ID ${item.MaHangHoa} không tồn tại`
                     );
                   }
-                  if (hangHoa.SoLuongTonKho < item.SoLuong) {
+
+                  // Kiểm tra SoLuongTonKho có phải là số hợp lệ không
+                  const soLuongTonKho = Number(hangHoa.SoLuongTonKho);
+                  if (isNaN(soLuongTonKho)) {
+                    return rollbackAndRelease(
+                      connection,
+                      res,
+                      `Số lượng tồn kho của hàng hóa ${hangHoa.TenHangHoa} không hợp lệ`
+                    );
+                  }
+                  if (soLuongTonKho < item.SoLuong) {
                     return rollbackAndRelease(
                       connection,
                       res,
@@ -171,7 +176,7 @@ exports.create = (req, res) => {
                     );
                   }
 
-                  const newSoLuongTonKho = hangHoa.SoLuongTonKho - item.SoLuong;
+                  const newSoLuongTonKho = soLuongTonKho - item.SoLuong;
                   connection.query(
                     "UPDATE HANG_HOA SET SoLuongTonKho = ? WHERE Id_HangHoa = ?",
                     [newSoLuongTonKho, item.MaHangHoa],
@@ -187,7 +192,6 @@ exports.create = (req, res) => {
 
                       completedItems++;
                       if (completedItems === chiTiet.length) {
-                        // Tạo phiếu xuất
                         PhieuXuatHang.create(newPhieuXuat, (err, result) => {
                           if (err) {
                             return rollbackAndRelease(
@@ -199,7 +203,6 @@ exports.create = (req, res) => {
                           }
                           const idPhieuXuat = result.insertId;
 
-                          // Tạo chi tiết phiếu xuất
                           let completedDetails = 0;
                           chiTiet.forEach((detail) => {
                             ChiTietPhieuXuat.create(
@@ -257,11 +260,10 @@ exports.create = (req, res) => {
   });
 };
 
-// Hàm hỗ trợ để rollback và release connection
 function rollbackAndRelease(connection, res, message, error) {
   connection.rollback(() => {
     connection.release();
-    console.error(`${message}:`, error);
+    console.error(`${ariot}:`, error);
     res.status(500).json({ message, error: error ? error.message : undefined });
   });
 }
