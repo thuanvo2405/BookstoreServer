@@ -73,8 +73,6 @@ exports.create = async (req, res) => {
   };
   const chiTiet = req.body.chiTiet;
 
-  console.log("Request body:", req.body);
-
   if (
     !newPhieuXuat.MaNhanVien ||
     !newPhieuXuat.MaKhachHang ||
@@ -85,111 +83,104 @@ exports.create = async (req, res) => {
       message: "MaNhanVien, MaKhachHang và chi tiết phiếu xuất là bắt buộc",
     });
   }
+
   console.log("Starting transaction with data:", newPhieuXuat, chiTiet);
-  db.beginTransaction(async (err) => {
-    if (err) {
-      console.error("Transaction error:", err);
-      return res
-        .status(500)
-        .json({ message: "Lỗi khi bắt đầu giao dịch", error: err.message });
-    }
 
-    try {
-      // Kiểm tra nhân viên
-      const nhanVien = await new Promise((resolve, reject) => {
-        db.query(
-          "SELECT * FROM NHAN_VIEN WHERE Id_NhanVien = ?",
-          [newPhieuXuat.MaNhanVien],
-          (err, data) => {
-            if (err) reject(err);
-            resolve(data[0]);
-          }
+  let connection;
+  try {
+    // Lấy connection từ pool
+    connection = await db.getConnection();
+
+    // Bắt đầu transaction
+    await connection.beginTransaction();
+
+    // Kiểm tra nhân viên
+    const nhanVien = await new Promise((resolve, reject) => {
+      connection.query(
+        "SELECT * FROM NHAN_VIEN WHERE Id_NhanVien = ?",
+        [newPhieuXuat.MaNhanVien],
+        (err, data) => (err ? reject(err) : resolve(data[0]))
+      );
+    });
+    if (!nhanVien)
+      throw new Error(
+        `Nhân viên với ID ${newPhieuXuat.MaNhanVien} không tồn tại`
+      );
+
+    // Kiểm tra khách hàng
+    const khachHang = await new Promise((resolve, reject) => {
+      connection.query(
+        "SELECT * FROM KHACH_HANG WHERE Id_KhachHang = ?",
+        [newPhieuXuat.MaKhachHang],
+        (err, data) => (err ? reject(err) : resolve(data[0]))
+      );
+    });
+    if (!khachHang)
+      throw new Error(
+        `Khách hàng với ID ${newPhieuXuat.MaKhachHang} không tồn tại`
+      );
+
+    // Kiểm tra và cập nhật hàng hóa
+    for (const item of chiTiet) {
+      const hangHoa = await new Promise((resolve, reject) => {
+        HangHoa.getById(item.MaHangHoa, (err, data) =>
+          err ? reject(err) : resolve(data[0])
         );
       });
-      if (!nhanVien)
-        throw new Error(
-          `Nhân viên với ID ${newPhieuXuat.MaNhanVien} không tồn tại`
-        );
-
-      // Kiểm tra khách hàng
-      const khachHang = await new Promise((resolve, reject) => {
-        db.query(
-          "SELECT * FROM KHACH_HANG WHERE Id_KhachHang = ?",
-          [newPhieuXuat.MaKhachHang],
-          (err, data) => {
-            if (err) reject(err);
-            resolve(data[0]);
-          }
-        );
-      });
-      if (!khachHang)
-        throw new Error(
-          `Khách hàng với ID ${newPhieuXuat.MaKhachHang} không tồn tại`
-        );
-
-      // Kiểm tra và cập nhật hàng hóa
-      for (const item of chiTiet) {
-        const hangHoa = await new Promise((resolve, reject) => {
-          HangHoa.getById(item.MaHangHoa, (err, data) =>
-            err ? reject(err) : resolve(data[0])
-          );
-        });
-        if (!hangHoa)
-          throw new Error(`Hàng hóa với ID ${item.MaHangHoa} không tồn tại`);
-        if (hangHoa.SoLuongTonKho < item.SoLuong) {
-          throw new Error(`Hàng hóa ${hangHoa.TenHangHoa} không đủ tồn kho`);
-        }
-        const newSoLuongTonKho = hangHoa.SoLuongTonKho - item.SoLuong;
-        await new Promise((resolve, reject) => {
-          HangHoa.update(
-            item.MaHangHoa,
-            { SoLuongTonKho: newSoLuongTonKho },
-            (err) => (err ? reject(err) : resolve())
-          );
-        });
+      if (!hangHoa)
+        throw new Error(`Hàng hóa với ID ${item.MaHangHoa} không tồn tại`);
+      if (hangHoa.SoLuongTonKho < item.SoLuong) {
+        throw new Error(`Hàng hóa ${hangHoa.TenHangHoa} không đủ tồn kho`);
       }
-
-      // Tạo phiếu xuất
-      const phieuXuatResult = await new Promise((resolve, reject) => {
-        PhieuXuatHang.create(newPhieuXuat, (err, result) =>
-          err ? reject(err) : resolve(result)
+      const newSoLuongTonKho = hangHoa.SoLuongTonKho - item.SoLuong;
+      await new Promise((resolve, reject) => {
+        connection.query(
+          "UPDATE HANG_HOA SET SoLuongTonKho = ? WHERE Id_HangHoa = ?",
+          [newSoLuongTonKho, item.MaHangHoa],
+          (err) => (err ? reject(err) : resolve())
         );
       });
-      const idPhieuXuat = phieuXuatResult.insertId;
-
-      // Tạo chi tiết phiếu xuất
-      await Promise.all(
-        chiTiet.map(
-          (item) =>
-            new Promise((resolve, reject) => {
-              ChiTietPhieuXuat.create(
-                {
-                  MaPhieuXuat: idPhieuXuat,
-                  MaHangHoa: item.MaHangHoa,
-                  DonGia: item.DonGia,
-                  SoLuong: item.SoLuong,
-                  PhuongThucThanhToan: item.PhuongThucThanhToan,
-                },
-                (err) => (err ? reject(err) : resolve())
-              );
-            })
-        )
-      );
-
-      // Commit transaction
-      await new Promise((resolve, reject) =>
-        db.commit((err) => (err ? reject(err) : resolve()))
-      );
-
-      res.status(201).json({ Id_PhieuXuat: idPhieuXuat, ...newPhieuXuat });
-    } catch (error) {
-      console.error("Transaction error:", error);
-      await new Promise((resolve) => db.rollback(() => resolve()));
-      return res
-        .status(500)
-        .json({ message: "Lỗi khi tạo phiếu xuất", error: error.message });
     }
-  });
+
+    // Tạo phiếu xuất
+    const phieuXuatResult = await new Promise((resolve, reject) => {
+      PhieuXuatHang.create(newPhieuXuat, (err, result) =>
+        err ? reject(err) : resolve(result)
+      );
+    });
+    const idPhieuXuat = phieuXuatResult.insertId;
+
+    // Tạo chi tiết phiếu xuất
+    await Promise.all(
+      chiTiet.map(
+        (item) =>
+          new Promise((resolve, reject) => {
+            ChiTietPhieuXuat.create(
+              {
+                MaPhieuXuat: idPhieuXuat,
+                MaHangHoa: item.MaHangHoa,
+                DonGia: item.DonGia,
+                SoLuong: item.SoLuong,
+                PhuongThucThanhToan: item.PhuongThucThanhToan,
+              },
+              (err) => (err ? reject(err) : resolve())
+            );
+          })
+      )
+    );
+
+    // Commit transaction
+    await connection.commit();
+    res.status(201).json({ Id_PhieuXuat: idPhieuXuat, ...newPhieuXuat });
+  } catch (error) {
+    console.error("Transaction error:", error);
+    if (connection) await connection.rollback();
+    return res
+      .status(500)
+      .json({ message: "Lỗi khi tạo phiếu xuất", error: error.message });
+  } finally {
+    if (connection) connection.release(); // Trả connection về pool
+  }
 };
 
 exports.update = async (req, res) => {
