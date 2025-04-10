@@ -235,12 +235,10 @@ exports.create = (req, res) => {
                                       );
                                     }
                                     connection.release();
-                                    res
-                                      .status(201)
-                                      .json({
-                                        Id_PhieuXuat: idPhieuXuat,
-                                        ...newPhieuXuat,
-                                      });
+                                    res.status(201).json({
+                                      Id_PhieuXuat: idPhieuXuat,
+                                      ...newPhieuXuat,
+                                    });
                                   });
                                 }
                               }
@@ -263,7 +261,7 @@ exports.create = (req, res) => {
 function rollbackAndRelease(connection, res, message, error) {
   connection.rollback(() => {
     connection.release();
-    console.error(`${ariot}:`, error);
+    console.error(`${message}:`, error); // Sửa 'ariot' thành 'message'
     res.status(500).json({ message, error: error ? error.message : undefined });
   });
 }
