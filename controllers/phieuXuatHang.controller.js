@@ -45,24 +45,20 @@ exports.getById = async (req, res) => {
       PhieuXuatHang.getDetails(id, (err, details) => {
         if (err) {
           console.error("Database error in getDetails:", err);
-          return res
-            .status(500)
-            .json({
-              message: "Lỗi khi lấy chi tiết phiếu xuất",
-              error: err.message,
-            });
+          return res.status(500).json({
+            message: "Lỗi khi lấy chi tiết phiếu xuất",
+            error: err.message,
+          });
         }
         res.json({ ...data[0], chiTiet: details });
       });
     });
   } catch (error) {
     console.error("Error in getById:", error);
-    res
-      .status(500)
-      .json({
-        message: "Lỗi khi lấy thông tin phiếu xuất",
-        error: error.message,
-      });
+    res.status(500).json({
+      message: "Lỗi khi lấy thông tin phiếu xuất",
+      error: error.message,
+    });
   }
 };
 
@@ -76,6 +72,8 @@ exports.create = async (req, res) => {
     Id_HoaDon: null,
   };
   const chiTiet = req.body.chiTiet;
+
+  console.log("Request body:", req.body);
 
   if (
     !newPhieuXuat.MaNhanVien ||
@@ -97,6 +95,7 @@ exports.create = async (req, res) => {
     }
 
     try {
+      // Kiểm tra nhân viên
       const nhanVien = await new Promise((resolve, reject) => {
         db.query(
           "SELECT * FROM NHAN_VIEN WHERE Id_NhanVien = ?",
@@ -107,8 +106,12 @@ exports.create = async (req, res) => {
           }
         );
       });
-      if (!nhanVien) throw new Error("Nhân viên không tồn tại");
+      if (!nhanVien)
+        throw new Error(
+          `Nhân viên với ID ${newPhieuXuat.MaNhanVien} không tồn tại`
+        );
 
+      // Kiểm tra khách hàng
       const khachHang = await new Promise((resolve, reject) => {
         db.query(
           "SELECT * FROM KHACH_HANG WHERE Id_KhachHang = ?",
@@ -119,8 +122,12 @@ exports.create = async (req, res) => {
           }
         );
       });
-      if (!khachHang) throw new Error("Khách hàng không tồn tại");
+      if (!khachHang)
+        throw new Error(
+          `Khách hàng với ID ${newPhieuXuat.MaKhachHang} không tồn tại`
+        );
 
+      // Kiểm tra và cập nhật hàng hóa
       for (const item of chiTiet) {
         const hangHoa = await new Promise((resolve, reject) => {
           HangHoa.getById(item.MaHangHoa, (err, data) =>
@@ -128,7 +135,7 @@ exports.create = async (req, res) => {
           );
         });
         if (!hangHoa)
-          throw new Error(`Hàng hóa với Id ${item.MaHangHoa} không tồn tại`);
+          throw new Error(`Hàng hóa với ID ${item.MaHangHoa} không tồn tại`);
         if (hangHoa.SoLuongTonKho < item.SoLuong) {
           throw new Error(`Hàng hóa ${hangHoa.TenHangHoa} không đủ tồn kho`);
         }
@@ -142,6 +149,7 @@ exports.create = async (req, res) => {
         });
       }
 
+      // Tạo phiếu xuất
       const phieuXuatResult = await new Promise((resolve, reject) => {
         PhieuXuatHang.create(newPhieuXuat, (err, result) =>
           err ? reject(err) : resolve(result)
@@ -149,6 +157,7 @@ exports.create = async (req, res) => {
       });
       const idPhieuXuat = phieuXuatResult.insertId;
 
+      // Tạo chi tiết phiếu xuất
       await Promise.all(
         chiTiet.map(
           (item) =>
@@ -167,14 +176,18 @@ exports.create = async (req, res) => {
         )
       );
 
+      // Commit transaction
       await new Promise((resolve, reject) =>
         db.commit((err) => (err ? reject(err) : resolve()))
       );
+
       res.status(201).json({ Id_PhieuXuat: idPhieuXuat, ...newPhieuXuat });
     } catch (error) {
-      await new Promise((resolve) => db.rollback(resolve));
-      console.error("Error in create:", error);
-      res.status(400).json({ message: error.message });
+      console.error("Transaction error:", error);
+      await new Promise((resolve) => db.rollback(() => resolve()));
+      return res
+        .status(500)
+        .json({ message: "Lỗi khi tạo phiếu xuất", error: error.message });
     }
   });
 };
