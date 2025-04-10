@@ -36,61 +36,61 @@ router.get("/:id", controller.getById);
  *         description: Thông tin hàng hóa
  */
 
-router.post("/", controller.create);
-/**
- * @swagger
- * /api/hanghoa:
- *   post:
- *     summary: Tạo mới một hàng hóa
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *     responses:
- *       201:
- *         description: Hàng hóa được tạo
- */
+// router.post("/", controller.create);
+// /**
+//  * @swagger
+//  * /api/hanghoa:
+//  *   post:
+//  *     summary: Tạo mới một hàng hóa
+//  *     requestBody:
+//  *       required: true
+//  *       content:
+//  *         application/json:
+//  *           schema:
+//  *             type: object
+//  *     responses:
+//  *       201:
+//  *         description: Hàng hóa được tạo
+//  */
 
-router.put("/:id", controller.update);
-/**
- * @swagger
- * /api/hanghoa/{id}:
- *   put:
- *     summary: Cập nhật thông tin hàng hóa
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: integer
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *     responses:
- *       200:
- *         description: Cập nhật thành công
- */
+// router.put("/:id", controller.update);
+// /**
+//  * @swagger
+//  * /api/hanghoa/{id}:
+//  *   put:
+//  *     summary: Cập nhật thông tin hàng hóa
+//  *     parameters:
+//  *       - in: path
+//  *         name: id
+//  *         required: true
+//  *         schema:
+//  *           type: integer
+//  *     requestBody:
+//  *       required: true
+//  *       content:
+//  *         application/json:
+//  *           schema:
+//  *             type: object
+//  *     responses:
+//  *       200:
+//  *         description: Cập nhật thành công
+//  */
 
-router.delete("/:id", controller.delete);
-/**
- * @swagger
- * /api/hanghoa/{id}:
- *   delete:
- *     summary: Xóa một hàng hóa
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: integer
- *     responses:
- *       200:
- *         description: Xóa thành công
- */
+// router.delete("/:id", controller.delete);
+// /**
+//  * @swagger
+//  * /api/hanghoa/{id}:
+//  *   delete:
+//  *     summary: Xóa một hàng hóa
+//  *     parameters:
+//  *       - in: path
+//  *         name: id
+//  *         required: true
+//  *         schema:
+//  *           type: integer
+//  *     responses:
+//  *       200:
+//  *         description: Xóa thành công
+//  */
 
 module.exports = router;
