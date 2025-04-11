@@ -116,4 +116,6 @@ router.delete("/:id", controller.delete);
  *         description: Xóa thành công
  */
 
+router.post("/from-phieu-xuat", controller.createFromPhieuXuat);
+
 module.exports = router;
