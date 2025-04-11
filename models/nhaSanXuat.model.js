@@ -1,48 +1,49 @@
 const db = require("../config/db");
 
 const NhaSanXuat = {
-  getAll: (callback) => {
-    db.query("SELECT * FROM NHA_SAN_XUAT", callback);
+  getAll: async () => {
+    const [rows] = await db.query("SELECT * FROM NHA_SAN_XUAT");
+    return rows;
   },
 
-  getById: (id, callback) => {
-    db.query(
+  getById: async (id) => {
+    const [rows] = await db.query(
       "SELECT * FROM NHA_SAN_XUAT WHERE Id_NhaSanXuat = ?",
-      [id],
-      callback
+      [id]
     );
+    return rows;
   },
 
-  create: (data, callback) => {
-    db.query("INSERT INTO NHA_SAN_XUAT SET ?", data, callback);
+  create: async (data, connection) => {
+    const [result] = await connection.query(
+      "INSERT INTO NHA_SAN_XUAT SET ?",
+      data
+    );
+    return result;
   },
 
-  update: (id, data, callback) => {
-    db.query(
+  update: async (id, data, connection) => {
+    const [result] = await connection.query(
       "UPDATE NHA_SAN_XUAT SET ? WHERE Id_NhaSanXuat = ?",
-      [data, id],
-      callback
+      [data, id]
     );
+    return result;
   },
 
-  // Kiểm tra xem nhà sản xuất có đang được sử dụng trong bảng HANG_HOA không
-  checkUsage: (id, callback) => {
-    db.query(
+  checkUsage: async (id) => {
+    const [rows] = await db.query(
       "SELECT COUNT(*) as count FROM HANG_HOA WHERE Id_NhaSanXuat = ?",
-      [id],
-      (err, result) => {
-        if (err) return callback(err);
-        callback(null, result[0].count);
-      }
+      [id]
     );
+    return rows[0].count;
   },
 
-  delete: (id, callback) => {
-    db.query(
+  delete: async (id, connection) => {
+    const [result] = await connection.query(
       "DELETE FROM NHA_SAN_XUAT WHERE Id_NhaSanXuat = ?",
-      [id],
-      callback
+      [id]
     );
+    return result;
   },
 };
 

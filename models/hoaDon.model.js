@@ -1,24 +1,37 @@
 const db = require("../config/db");
 
 const HoaDon = {
-  getAll: (callback) => {
-    db.query("SELECT * FROM HOA_DON", callback);
+  getAll: async () => {
+    const [rows] = await db.query("SELECT * FROM HOA_DON");
+    return rows;
   },
 
-  getById: (id, callback) => {
-    db.query("SELECT * FROM HOA_DON WHERE Id_HoaDon = ?", [id], callback);
+  getById: async (id) => {
+    const [rows] = await db.query("SELECT * FROM HOA_DON WHERE Id_HoaDon = ?", [
+      id,
+    ]);
+    return rows;
   },
 
-  create: (data, callback) => {
-    db.query("INSERT INTO HOA_DON SET ?", data, callback);
+  create: async (data, connection) => {
+    const [result] = await connection.query("INSERT INTO HOA_DON SET ?", data);
+    return result;
   },
 
-  update: (id, data, callback) => {
-    db.query("UPDATE HOA_DON SET ? WHERE Id_HoaDon = ?", [data, id], callback);
+  update: async (id, data, connection) => {
+    const [result] = await connection.query(
+      "UPDATE HOA_DON SET ? WHERE Id_HoaDon = ?",
+      [data, id]
+    );
+    return result;
   },
 
-  delete: (id, callback) => {
-    db.query("DELETE FROM HOA_DON WHERE Id_HoaDon = ?", [id], callback);
+  delete: async (id, connection) => {
+    const [result] = await connection.query(
+      "DELETE FROM HOA_DON WHERE Id_HoaDon = ?",
+      [id]
+    );
+    return result;
   },
 };
 

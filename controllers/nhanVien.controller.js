@@ -3,12 +3,11 @@ const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const SALT_ROUNDS = 10;
 const blacklistedTokens = new Set();
+
 exports.getAll = async (req, res) => {
   try {
-    NhanVien.getAll((err, data) => {
-      if (err) throw err;
-      res.json(data);
-    });
+    const data = await NhanVien.getAll();
+    res.json(data);
   } catch (error) {
     res.status(500).json({
       message: "Lỗi khi lấy danh sách nhân viên",
@@ -20,12 +19,11 @@ exports.getAll = async (req, res) => {
 exports.getById = async (req, res) => {
   try {
     const id = req.params.id;
-    NhanVien.getById(id, (err, data) => {
-      if (err) throw err;
-      if (!data.length)
-        return res.status(404).json({ message: "Nhân viên không tồn tại" });
-      res.json(data[0]);
-    });
+    const data = await NhanVien.getById(id);
+    if (!data.length) {
+      return res.status(404).json({ message: "Nhân viên không tồn tại" });
+    }
+    res.json(data[0]);
   } catch (error) {
     res.status(500).json({
       message: "Lỗi khi lấy thông tin nhân viên",
@@ -35,83 +33,103 @@ exports.getById = async (req, res) => {
 };
 
 exports.create = async (req, res) => {
+  let connection;
   try {
     const newNhanVien = req.body;
 
-    // Kiểm tra các trường bắt buộc
     if (!newNhanVien.HoTen || !newNhanVien.Email || !newNhanVien.MatKhau) {
       return res
         .status(400)
         .json({ message: "Họ tên, email và mật khẩu là bắt buộc" });
     }
 
-    // Kiểm tra định dạng email
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(newNhanVien.Email)) {
       return res.status(400).json({ message: "Email không hợp lệ" });
     }
 
-    // Mã hóa mật khẩu
     newNhanVien.MatKhau = await bcrypt.hash(newNhanVien.MatKhau, SALT_ROUNDS);
 
-    NhanVien.create(newNhanVien, (err, result) => {
-      if (err) throw err;
-      res.status(201).json({ id: result.insertId, ...newNhanVien });
-    });
+    connection = await db.getConnection();
+    const result = await NhanVien.create(newNhanVien, connection);
+
+    res.status(201).json({ id: result.insertId, ...newNhanVien });
   } catch (error) {
-    res
-      .status(500)
-      .json({ message: "Lỗi khi tạo nhân viên", error: error.message });
+    res.status(500).json({
+      message: "Lỗi khi tạo nhân viên",
+      error: error.message,
+    });
+  } finally {
+    if (connection) {
+      connection.release();
+    }
   }
 };
 
 exports.update = async (req, res) => {
+  let connection;
   try {
     const id = req.params.id;
     const updatedData = req.body;
 
-    // Nếu có cập nhật mật khẩu, mã hóa nó
+    const existingNhanVien = await NhanVien.getById(id);
+    if (!existingNhanVien.length) {
+      return res.status(404).json({ message: "Nhân viên không tồn tại" });
+    }
+
     if (updatedData.MatKhau) {
       updatedData.MatKhau = await bcrypt.hash(updatedData.MatKhau, SALT_ROUNDS);
     }
 
-    NhanVien.update(id, updatedData, (err, result) => {
-      if (err) throw err;
-      if (result.affectedRows === 0)
-        return res.status(404).json({ message: "Nhân viên không tồn tại" });
-      res.json({ message: "Cập nhật nhân viên thành công" });
-    });
+    connection = await db.getConnection();
+    const result = await NhanVien.update(id, updatedData, connection);
+
+    if (result.affectedRows === 0) {
+      throw new Error("Nhân viên không tồn tại");
+    }
+
+    res.json({ message: "Cập nhật nhân viên thành công" });
   } catch (error) {
-    res
-      .status(500)
-      .json({ message: "Lỗi khi cập nhật nhân viên", error: error.message });
+    res.status(500).json({
+      message: "Lỗi khi cập nhật nhân viên",
+      error: error.message,
+    });
+  } finally {
+    if (connection) {
+      connection.release();
+    }
   }
 };
 
 exports.delete = async (req, res) => {
+  let connection;
   try {
     const id = req.params.id;
 
-    // Kiểm tra xem nhân viên có đang được sử dụng không
-    NhanVien.checkUsage(id, (err, count) => {
-      if (err) throw err;
-      if (count > 0) {
-        return res.status(400).json({
-          message: `Không thể xóa nhân viên này vì có ${count} phiếu xuất đang sử dụng.`,
-        });
-      }
-
-      NhanVien.delete(id, (err, result) => {
-        if (err) throw err;
-        if (result.affectedRows === 0)
-          return res.status(404).json({ message: "Nhân viên không tồn tại" });
-        res.json({ message: "Xóa nhân viên thành công" });
+    const count = await NhanVien.checkUsage(id);
+    if (count > 0) {
+      return res.status(400).json({
+        message: `Không thể xóa nhân viên này vì có ${count} phiếu xuất đang sử dụng.`,
       });
-    });
+    }
+
+    connection = await db.getConnection();
+    const result = await NhanVien.delete(id, connection);
+
+    if (result.affectedRows === 0) {
+      throw new Error("Nhân viên không tồn tại");
+    }
+
+    res.json({ message: "Xóa nhân viên thành công" });
   } catch (error) {
-    res
-      .status(500)
-      .json({ message: "Lỗi khi xóa nhân viên", error: error.message });
+    res.status(500).json({
+      message: "Lỗi khi xóa nhân viên",
+      error: error.message,
+    });
+  } finally {
+    if (connection) {
+      connection.release();
+    }
   }
 };
 
@@ -119,19 +137,12 @@ exports.login = async (req, res) => {
   try {
     const { Email, MatKhau } = req.body;
 
-    // Kiểm tra các trường bắt buộc
     if (!Email || !MatKhau) {
       return res.status(400).json({ message: "Email và mật khẩu là bắt buộc" });
     }
 
-    // Tìm nhân viên theo email
-    const nhanVien = await new Promise((resolve, reject) => {
-      NhanVien.getAll((err, data) => {
-        if (err) return reject(err);
-        const user = data.find((nv) => nv.Email === Email);
-        resolve(user);
-      });
-    });
+    const data = await NhanVien.getAll();
+    const nhanVien = data.find((nv) => nv.Email === Email);
 
     if (!nhanVien) {
       return res
@@ -139,7 +150,6 @@ exports.login = async (req, res) => {
         .json({ message: "Email hoặc mật khẩu không đúng" });
     }
 
-    // Kiểm tra mật khẩu
     const isMatch = await bcrypt.compare(MatKhau, nhanVien.MatKhau);
     if (!isMatch) {
       return res
@@ -147,35 +157,34 @@ exports.login = async (req, res) => {
         .json({ message: "Email hoặc mật khẩu không đúng" });
     }
 
-    // Tạo JWT
     const token = jwt.sign(
       { id: nhanVien.Id_NhanVien, chucVu: nhanVien.ChucVu },
-      process.env.JWT_SECRET || "your_jwt_secret", // Đặt secret trong file .env
+      process.env.JWT_SECRET || "your_jwt_secret",
       { expiresIn: "1h" }
     );
 
     res.json({ message: "Đăng nhập thành công", token });
   } catch (error) {
-    res
-      .status(500)
-      .json({ message: "Lỗi khi đăng nhập", error: error.message });
+    res.status(500).json({
+      message: "Lỗi khi đăng nhập",
+      error: error.message,
+    });
   }
 };
 
 exports.logout = async (req, res) => {
   try {
-    const token = req.headers.authorization?.split(" ")[1]; // Lấy token từ header
+    const token = req.headers.authorization?.split(" ")[1];
     if (!token) {
       return res.status(400).json({ message: "Không tìm thấy token" });
     }
 
-    // Thêm token vào danh sách đen
     blacklistedTokens.add(token);
-
     res.json({ message: "Đăng xuất thành công" });
   } catch (error) {
-    res
-      .status(500)
-      .json({ message: "Lỗi khi đăng xuất", error: error.message });
+    res.status(500).json({
+      message: "Lỗi khi đăng xuất",
+      error: error.message,
+    });
   }
 };

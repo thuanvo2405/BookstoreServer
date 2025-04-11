@@ -1,48 +1,49 @@
 const db = require("../config/db");
 
 const LoaiHangHoa = {
-  getAll: (callback) => {
-    db.query("SELECT * FROM LOAI_HANG_HOA", callback);
+  getAll: async () => {
+    const [rows] = await db.query("SELECT * FROM LOAI_HANG_HOA");
+    return rows;
   },
 
-  getById: (id, callback) => {
-    db.query(
+  getById: async (id) => {
+    const [rows] = await db.query(
       "SELECT * FROM LOAI_HANG_HOA WHERE Id_LoaiHangHoa = ?",
-      [id],
-      callback
+      [id]
     );
+    return rows;
   },
 
-  create: (data, callback) => {
-    db.query("INSERT INTO LOAI_HANG_HOA SET ?", data, callback);
+  create: async (data, connection) => {
+    const [result] = await connection.query(
+      "INSERT INTO LOAI_HANG_HOA SET ?",
+      data
+    );
+    return result;
   },
 
-  update: (id, data, callback) => {
-    db.query(
+  update: async (id, data, connection) => {
+    const [result] = await connection.query(
       "UPDATE LOAI_HANG_HOA SET ? WHERE Id_LoaiHangHoa = ?",
-      [data, id],
-      callback
+      [data, id]
     );
+    return result;
   },
 
-  // Kiểm tra xem loại hàng hóa có đang được sử dụng trong bảng HANG_HOA không
-  checkUsage: (id, callback) => {
-    db.query(
+  checkUsage: async (id) => {
+    const [rows] = await db.query(
       "SELECT COUNT(*) as count FROM HANG_HOA WHERE Id_LoaiHangHoa = ?",
-      [id],
-      (err, result) => {
-        if (err) return callback(err);
-        callback(null, result[0].count);
-      }
+      [id]
     );
+    return rows[0].count;
   },
 
-  delete: (id, callback) => {
-    db.query(
+  delete: async (id, connection) => {
+    const [result] = await connection.query(
       "DELETE FROM LOAI_HANG_HOA WHERE Id_LoaiHangHoa = ?",
-      [id],
-      callback
+      [id]
     );
+    return result;
   },
 };
 

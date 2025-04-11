@@ -1,52 +1,56 @@
 const db = require("../config/db");
 
 const ChiTietPhieuXuat = {
-  getAll: (callback) => {
-    db.query(
+  getAll: async () => {
+    const [rows] = await db.query(
       `SELECT ctpx.*, hh.TenHangHoa 
        FROM CHI_TIET_PHIEU_XUAT ctpx 
-       JOIN HANG_HOA hh ON ctpx.MaHangHoa = hh.Id_HangHoa`,
-      callback
+       JOIN HANG_HOA hh ON ctpx.MaHangHoa = hh.Id_HangHoa`
     );
+    return rows;
   },
 
-  getByPhieuXuatId: (idPhieuXuat, callback) => {
-    db.query(
+  getByPhieuXuatId: async (idPhieuXuat) => {
+    const [rows] = await db.query(
       `SELECT ctpx.*, hh.TenHangHoa 
        FROM CHI_TIET_PHIEU_XUAT ctpx 
        JOIN HANG_HOA hh ON ctpx.MaHangHoa = hh.Id_HangHoa 
        WHERE ctpx.MaPhieuXuat = ?`,
-      [idPhieuXuat],
-      callback
+      [idPhieuXuat]
     );
+    return rows;
   },
 
-  create: (data, connection, callback) => {
-    connection.query("INSERT INTO CHI_TIET_PHIEU_XUAT SET ?", data, callback);
+  create: async (data, connection) => {
+    const [result] = await connection.query(
+      "INSERT INTO CHI_TIET_PHIEU_XUAT SET ?",
+      data
+    );
+    return result;
   },
 
-  update: (id, data, connection, callback) => {
-    connection.query(
+  update: async (id, data, connection) => {
+    const [result] = await connection.query(
       "UPDATE CHI_TIET_PHIEU_XUAT SET ? WHERE Id_ChiTietPhieuXuat = ?",
-      [data, id],
-      callback
+      [data, id]
     );
+    return result;
   },
 
-  delete: (id, connection, callback) => {
-    connection.query(
+  delete: async (id, connection) => {
+    const [result] = await connection.query(
       "DELETE FROM CHI_TIET_PHIEU_XUAT WHERE Id_ChiTietPhieuXuat = ?",
-      [id],
-      callback
+      [id]
     );
+    return result;
   },
 
-  deleteByPhieuXuatId: (idPhieuXuat, connection, callback) => {
-    connection.query(
+  deleteByPhieuXuatId: async (idPhieuXuat, connection) => {
+    const [result] = await connection.query(
       "DELETE FROM CHI_TIET_PHIEU_XUAT WHERE MaPhieuXuat = ?",
-      [idPhieuXuat],
-      callback
+      [idPhieuXuat]
     );
+    return result;
   },
 };
 

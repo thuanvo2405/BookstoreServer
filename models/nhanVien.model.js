@@ -1,39 +1,49 @@
 const db = require("../config/db");
 
 const NhanVien = {
-  getAll: (callback) => {
-    db.query("SELECT * FROM NHAN_VIEN", callback);
+  getAll: async () => {
+    const [rows] = await db.query("SELECT * FROM NHAN_VIEN");
+    return rows;
   },
 
-  getById: (id, callback) => {
-    db.query("SELECT * FROM NHAN_VIEN WHERE Id_NhanVien = ?", [id], callback);
+  getById: async (id) => {
+    const [rows] = await db.query(
+      "SELECT * FROM NHAN_VIEN WHERE Id_NhanVien = ?",
+      [id]
+    );
+    return rows;
   },
 
-  create: (data, callback) => {
-    db.query("INSERT INTO NHAN_VIEN SET ?", data, callback);
+  create: async (data, connection) => {
+    const [result] = await connection.query(
+      "INSERT INTO NHAN_VIEN SET ?",
+      data
+    );
+    return result;
   },
 
-  update: (id, data, callback) => {
-    db.query(
+  update: async (id, data, connection) => {
+    const [result] = await connection.query(
       "UPDATE NHAN_VIEN SET ? WHERE Id_NhanVien = ?",
-      [data, id],
-      callback
+      [data, id]
     );
+    return result;
   },
 
-  checkUsage: (id, callback) => {
-    db.query(
+  checkUsage: async (id) => {
+    const [rows] = await db.query(
       "SELECT COUNT(*) as count FROM PHIEU_XUAT WHERE MaNhanVien = ?",
-      [id],
-      (err, result) => {
-        if (err) return callback(err);
-        callback(null, result[0].count);
-      }
+      [id]
     );
+    return rows[0].count;
   },
 
-  delete: (id, callback) => {
-    db.query("DELETE FROM NHAN_VIEN WHERE Id_NhanVien = ?", [id], callback);
+  delete: async (id, connection) => {
+    const [result] = await connection.query(
+      "DELETE FROM NHAN_VIEN WHERE Id_NhanVien = ?",
+      [id]
+    );
+    return result;
   },
 };
 

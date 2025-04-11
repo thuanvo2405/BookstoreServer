@@ -2,10 +2,8 @@ const KhachHang = require("../models/khachHang.model");
 
 exports.getAll = async (req, res) => {
   try {
-    KhachHang.getAll((err, data) => {
-      if (err) throw err;
-      res.json(data);
-    });
+    const data = await KhachHang.getAll();
+    res.json(data);
   } catch (error) {
     res.status(500).json({
       message: "Lỗi khi lấy danh sách khách hàng",
@@ -17,12 +15,11 @@ exports.getAll = async (req, res) => {
 exports.getById = async (req, res) => {
   try {
     const id = req.params.id;
-    KhachHang.getById(id, (err, data) => {
-      if (err) throw err;
-      if (!data.length)
-        return res.status(404).json({ message: "Khách hàng không tồn tại" });
-      res.json(data[0]);
-    });
+    const data = await KhachHang.getById(id);
+    if (!data.length) {
+      return res.status(404).json({ message: "Khách hàng không tồn tại" });
+    }
+    res.json(data[0]);
   } catch (error) {
     res.status(500).json({
       message: "Lỗi khi lấy thông tin khách hàng",
@@ -32,10 +29,10 @@ exports.getById = async (req, res) => {
 };
 
 exports.create = async (req, res) => {
+  let connection;
   try {
     const newKhachHang = req.body;
 
-    // Validation
     if (!newKhachHang.HoTen || !newKhachHang.Email) {
       return res.status(400).json({ message: "Họ tên và email là bắt buộc" });
     }
@@ -44,58 +41,81 @@ exports.create = async (req, res) => {
       return res.status(400).json({ message: "Email không hợp lệ" });
     }
 
-    KhachHang.create(newKhachHang, (err, result) => {
-      if (err) throw err;
-      res.status(201).json({ id: result.insertId, ...newKhachHang });
-    });
+    connection = await db.getConnection();
+    const result = await KhachHang.create(newKhachHang, connection);
+
+    res.status(201).json({ id: result.insertId, ...newKhachHang });
   } catch (error) {
-    res
-      .status(500)
-      .json({ message: "Lỗi khi tạo khách hàng", error: error.message });
+    res.status(500).json({
+      message: "Lỗi khi tạo khách hàng",
+      error: error.message,
+    });
+  } finally {
+    if (connection) {
+      connection.release();
+    }
   }
 };
 
 exports.update = async (req, res) => {
+  let connection;
   try {
     const id = req.params.id;
     const updatedData = req.body;
-    KhachHang.update(id, updatedData, (err, result) => {
-      if (err) throw err;
-      if (result.affectedRows === 0)
-        return res.status(404).json({ message: "Khách hàng không tồn tại" });
-      res.json({ message: "Cập nhật khách hàng thành công" });
-    });
+
+    const existingKhachHang = await KhachHang.getById(id);
+    if (!existingKhachHang.length) {
+      return res.status(404).json({ message: "Khách hàng không tồn tại" });
+    }
+
+    connection = await db.getConnection();
+    const result = await KhachHang.update(id, updatedData, connection);
+
+    if (result.affectedRows === 0) {
+      throw new Error("Khách hàng không tồn tại");
+    }
+
+    res.json({ message: "Cập nhật khách hàng thành công" });
   } catch (error) {
-    res
-      .status(500)
-      .json({ message: "Lỗi khi cập nhật khách hàng", error: error.message });
+    res.status(500).json({
+      message: "Lỗi khi cập nhật khách hàng",
+      error: error.message,
+    });
+  } finally {
+    if (connection) {
+      connection.release();
+    }
   }
 };
 
 exports.delete = async (req, res) => {
+  let connection;
   try {
     const id = req.params.id;
 
-    // Kiểm tra xem khách hàng có đang được sử dụng không
-    KhachHang.checkUsage(id, (err, count) => {
-      if (err) throw err;
-      if (count > 0) {
-        return res.status(400).json({
-          message: `Không thể xóa khách hàng này vì có ${count} phiếu xuất đang sử dụng.`,
-        });
-      }
-
-      // Nếu không có phiếu xuất nào sử dụng, tiến hành xóa
-      KhachHang.delete(id, (err, result) => {
-        if (err) throw err;
-        if (result.affectedRows === 0)
-          return res.status(404).json({ message: "Khách hàng không tồn tại" });
-        res.json({ message: "Xóa khách hàng thành công" });
+    const count = await KhachHang.checkUsage(id);
+    if (count > 0) {
+      return res.status(400).json({
+        message: `Không thể xóa khách hàng này vì có ${count} phiếu xuất đang sử dụng.`,
       });
-    });
+    }
+
+    connection = await db.getConnection();
+    const result = await KhachHang.delete(id, connection);
+
+    if (result.affectedRows === 0) {
+      throw new Error("Khách hàng không tồn tại");
+    }
+
+    res.json({ message: "Xóa khách hàng thành công" });
   } catch (error) {
-    res
-      .status(500)
-      .json({ message: "Lỗi khi xóa khách hàng", error: error.message });
+    res.status(500).json({
+      message: "Lỗi khi xóa khách hàng",
+      error: error.message,
+    });
+  } finally {
+    if (connection) {
+      connection.release();
+    }
   }
 };
