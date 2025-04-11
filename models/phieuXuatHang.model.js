@@ -23,20 +23,24 @@ const PhieuXuatHang = {
     );
   },
 
-  create: (data, callback) => {
-    db.query("INSERT INTO PHIEU_XUAT SET ?", data, callback);
+  create: (data, connection, callback) => {
+    connection.query("INSERT INTO PHIEU_XUAT SET ?", data, callback);
   },
 
-  update: (id, data, callback) => {
-    db.query(
+  update: (id, data, connection, callback) => {
+    connection.query(
       "UPDATE PHIEU_XUAT SET ? WHERE Id_PhieuXuat = ?",
       [data, id],
       callback
     );
   },
 
-  delete: (id, callback) => {
-    db.query("DELETE FROM PHIEU_XUAT WHERE Id_PhieuXuat = ?", [id], callback);
+  delete: (id, connection, callback) => {
+    connection.query(
+      "DELETE FROM PHIEU_XUAT WHERE Id_PhieuXuat = ?",
+      [id],
+      callback
+    );
   },
 };
 

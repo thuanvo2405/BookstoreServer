@@ -21,28 +21,28 @@ const ChiTietPhieuXuat = {
     );
   },
 
-  create: (data, callback) => {
-    db.query("INSERT INTO CHI_TIET_PHIEU_XUAT SET ?", data, callback);
+  create: (data, connection, callback) => {
+    connection.query("INSERT INTO CHI_TIET_PHIEU_XUAT SET ?", data, callback);
   },
 
-  update: (id, data, callback) => {
-    db.query(
+  update: (id, data, connection, callback) => {
+    connection.query(
       "UPDATE CHI_TIET_PHIEU_XUAT SET ? WHERE Id_ChiTietPhieuXuat = ?",
       [data, id],
       callback
     );
   },
 
-  delete: (id, callback) => {
-    db.query(
+  delete: (id, connection, callback) => {
+    connection.query(
       "DELETE FROM CHI_TIET_PHIEU_XUAT WHERE Id_ChiTietPhieuXuat = ?",
       [id],
       callback
     );
   },
 
-  deleteByPhieuXuatId: (idPhieuXuat, callback) => {
-    db.query(
+  deleteByPhieuXuatId: (idPhieuXuat, connection, callback) => {
+    connection.query(
       "DELETE FROM CHI_TIET_PHIEU_XUAT WHERE MaPhieuXuat = ?",
       [idPhieuXuat],
       callback

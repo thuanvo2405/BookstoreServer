@@ -63,6 +63,7 @@ exports.getById = async (req, res) => {
 };
 
 exports.create = async (req, res) => {
+  let connection;
   try {
     const { phieuXuatData, chiTiet } = req.body;
 
@@ -76,37 +77,30 @@ exports.create = async (req, res) => {
       return res.status(400).json({ message: "Dữ liệu không hợp lệ" });
     }
 
-    // Start a transaction
-    await new Promise((resolve, reject) => {
-      db.beginTransaction((err) => {
-        if (err) reject(err);
-        resolve();
-      });
-    });
+    // Lấy kết nối từ pool
+    connection = await db.getConnection();
+
+    // Bắt đầu giao dịch
+    await connection.beginTransaction();
 
     // Create PhieuXuatHang
-    const phieuXuatResult = await new Promise((resolve, reject) => {
-      PhieuXuatHang.create(phieuXuatData, (err, result) => {
-        if (err) reject(err);
-        resolve(result);
-      });
-    });
-
+    const [phieuXuatResult] = await connection.query(
+      "INSERT INTO PHIEU_XUAT SET ?",
+      phieuXuatData
+    );
     const idPhieuXuat = phieuXuatResult.insertId;
 
-    // Create ChiTietPhieuXuat and update inventory
+    // Create ChiTietPhieuXuat và update inventory
     for (const detail of chiTiet) {
       if (!detail.MaHangHoa || !detail.SoLuong || !detail.DonGia) {
         throw new Error("Chi tiết phiếu xuất không hợp lệ");
       }
 
-      // Verify HangHoa exists and has enough stock
-      const hangHoa = await new Promise((resolve, reject) => {
-        HangHoa.getById(detail.MaHangHoa, (err, data) => {
-          if (err) reject(err);
-          resolve(data[0]);
-        });
-      });
+      // Verify HangHoa exists và has enough stock
+      const [[hangHoa]] = await connection.query(
+        "SELECT * FROM HANG_HOA WHERE Id_HangHoa = ?",
+        [detail.MaHangHoa]
+      );
 
       if (!hangHoa) {
         throw new Error(`Hàng hóa ${detail.MaHangHoa} không tồn tại`);
@@ -116,57 +110,43 @@ exports.create = async (req, res) => {
       }
 
       // Create ChiTietPhieuXuat
-      await new Promise((resolve, reject) => {
-        ChiTietPhieuXuat.create(
-          {
-            MaPhieuXuat: idPhieuXuat,
-            MaHangHoa: detail.MaHangHoa,
-            SoLuong: detail.SoLuong,
-            DonGia: detail.DonGia,
-            PhuongThucThanhToan: detail.PhuongThucThanhToan,
-          },
-          (err, result) => {
-            if (err) reject(err);
-            resolve(result);
-          }
-        );
+      await connection.query("INSERT INTO CHI_TIET_PHIEU_XUAT SET ?", {
+        MaPhieuXuat: idPhieuXuat,
+        MaHangHoa: detail.MaHangHoa,
+        SoLuong: detail.SoLuong,
+        DonGia: detail.DonGia,
+        PhuongThucThanhToan: detail.PhuongThucThanhToan,
       });
 
       // Update inventory
-      await new Promise((resolve, reject) => {
-        HangHoa.update(
-          detail.MaHangHoa,
-          { SoLuongTonKho: `SoLuongTonKho - ${detail.SoLuong}` },
-          (err, result) => {
-            if (err) reject(err);
-            resolve(result);
-          }
-        );
-      });
+      await connection.query(
+        "UPDATE HANG_HOA SET SoLuongTonKho = SoLuongTonKho - ? WHERE Id_HangHoa = ?",
+        [detail.SoLuong, detail.MaHangHoa]
+      );
     }
 
-    // Commit transaction
-    await new Promise((resolve, reject) => {
-      db.commit((err) => {
-        if (err) reject(err);
-        resolve();
-      });
-    });
+    // Commit giao dịch
+    await connection.commit();
 
     res.status(201).json({
       message: "Tạo phiếu xuất thành công",
       Id_PhieuXuat: idPhieuXuat,
     });
   } catch (error) {
-    // Rollback transaction on error
-    await new Promise((resolve) => {
-      db.rollback(() => resolve());
-    });
+    // Rollback giao dịch nếu có lỗi
+    if (connection) {
+      await connection.rollback();
+    }
     console.error("Error in create:", error);
     res.status(500).json({
       message: "Lỗi khi tạo phiếu xuất",
       error: error.message,
     });
+  } finally {
+    // Giải phóng kết nối
+    if (connection) {
+      connection.release();
+    }
   }
 };
 
