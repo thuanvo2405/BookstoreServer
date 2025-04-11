@@ -132,41 +132,92 @@ exports.createFromPhieuXuat = async (req, res) => {
   try {
     const { phieuXuatId } = req.body;
 
-    if (!phieuXuatId) {
-      return res.status(400).json({ message: "ID phiếu xuất là bắt buộc" });
+    // Xác thực đầu vào
+    if (!phieuXuatId || isNaN(phieuXuatId)) {
+      return res.status(400).json({ message: "ID phiếu xuất không hợp lệ" });
+    }
+
+    // Lấy kết nối cơ sở dữ liệu và bắt đầu giao dịch
+    connection = await db.getConnection();
+    await connection.beginTransaction();
+
+    // Kiểm tra xem hóa đơn đã tồn tại cho phiếu xuất này chưa
+    const [existingHoaDon] = await connection.query(
+      "SELECT Id_HoaDon FROM HOA_DON WHERE Id_PhieuXuat = ?",
+      [phieuXuatId]
+    );
+    if (existingHoaDon.length > 0) {
+      await connection.rollback();
+      return res.status(400).json({
+        message: "Hóa đơn đã tồn tại cho phiếu xuất này",
+      });
     }
 
     // Lấy thông tin phiếu xuất
     const phieuXuatRows = await PhieuXuatHang.getById(phieuXuatId);
     if (!phieuXuatRows.length) {
+      await connection.rollback();
       return res.status(404).json({ message: "Phiếu xuất không tồn tại" });
     }
     const phieuXuat = phieuXuatRows[0];
 
+    // Kiểm tra trạng thái phiếu xuất (giả sử có trường TrangThai)
+    if (phieuXuat.TrangThai && phieuXuat.TrangThai !== "hoan_tat") {
+      await connection.rollback();
+      return res.status(400).json({
+        message: "Phiếu xuất chưa hoàn tất, không thể tạo hóa đơn",
+      });
+    }
+
     // Lấy chi tiết phiếu xuất
     const chiTietRows = await ChiTietPhieuXuat.getByPhieuXuatId(phieuXuatId);
     if (!chiTietRows.length) {
+      await connection.rollback();
       return res.status(400).json({ message: "Phiếu xuất không có chi tiết" });
     }
 
-    // Tính tổng tiền từ chi tiết phiếu xuất
+    // Tính tổng tiền
     const tongTien = chiTietRows.reduce(
       (sum, detail) => sum + detail.SoLuong * detail.DonGia,
       0
     );
+    if (tongTien <= 0) {
+      await connection.rollback();
+      return res
+        .status(400)
+        .json({ message: "Tổng tiền hóa đơn không hợp lệ" });
+    }
+
+    // Xác định phương thức thanh toán (lấy từ chi tiết đầu tiên hoặc mặc định)
+    const phuongThucThanhToan =
+      chiTietRows[0].PhuongThucThanhToan || "Chưa xác định";
+
+    // Xác thực ngày xuất
+    const ngayXuat = phieuXuat.NgayXuat;
+    if (!ngayXuat || isNaN(new Date(ngayXuat).getTime())) {
+      await connection.rollback();
+      return res.status(400).json({ message: "Ngày xuất không hợp lệ" });
+    }
 
     // Tạo dữ liệu hóa đơn
     const hoaDonData = {
       Id_PhieuXuat: phieuXuatId,
-      NgayXuat: phieuXuat.NgayXuat || new Date().toISOString().split("T")[0], // Lấy từ phiếu xuất hoặc ngày hiện tại
+      NgayXuat: ngayXuat,
       TongTien: tongTien,
-      // Thêm các trường khác nếu cần, ví dụ: GhiChu, TrangThai
+      PhuongThucThanhToan: phuongThucThanhToan,
+      TrangThai: "cho_xu_ly", // Trạng thái ban đầu của hóa đơn
     };
 
-    connection = await db.getConnection();
-    await connection.beginTransaction();
-
+    // Tạo hóa đơn
     const result = await HoaDon.create(hoaDonData, connection);
+
+    // Cập nhật trạng thái phiếu xuất thành "đã lập hóa đơn"
+    await connection.query(
+      "UPDATE PHIEU_XUAT SET TrangThai = ? WHERE Id_PhieuXuat = ?",
+      ["da_lap_hoa_don", phieuXuatId]
+    );
+
+    // Hoàn tất giao dịch
     await connection.commit();
 
     res.status(201).json({
@@ -178,7 +229,20 @@ exports.createFromPhieuXuat = async (req, res) => {
     if (connection) {
       await connection.rollback();
     }
-    console.error("Error in createFromPhieuXuat:", error);
+    console.error("Lỗi trong createFromPhieuXuat:", error);
+
+    // Xử lý lỗi cụ thể
+    if (error.message.includes("ER_DUP_ENTRY")) {
+      return res.status(400).json({
+        message: "Hóa đơn đã tồn tại cho phiếu xuất này",
+      });
+    }
+    if (error.message.includes("ER_NO_REFERENCED_ROW")) {
+      return res.status(400).json({
+        message: "Dữ liệu liên quan không hợp lệ",
+      });
+    }
+
     res.status(500).json({
       message: "Lỗi khi tạo hóa đơn từ phiếu xuất",
       error: error.message,
