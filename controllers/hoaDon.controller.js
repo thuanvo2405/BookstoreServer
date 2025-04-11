@@ -35,6 +35,12 @@ exports.create = async (req, res) => {
   try {
     const hoaDonData = req.body;
 
+    // Ánh xạ MaPhieuXuat thành Id_PhieuXuat nếu tồn tại
+    if (hoaDonData.MaPhieuXuat) {
+      hoaDonData.Id_PhieuXuat = hoaDonData.MaPhieuXuat;
+      delete hoaDonData.MaPhieuXuat;
+    }
+
     if (!hoaDonData.NgayXuat || !hoaDonData.TongTien) {
       return res.status(400).json({ message: "Dữ liệu hóa đơn không hợp lệ" });
     }
