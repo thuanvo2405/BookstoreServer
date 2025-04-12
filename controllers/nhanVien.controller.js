@@ -3,7 +3,7 @@ const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const SALT_ROUNDS = 10;
 const blacklistedTokens = new Set();
-
+const db = require("../config/db"); 
 exports.getAll = async (req, res) => {
   try {
     const data = await NhanVien.getAll();

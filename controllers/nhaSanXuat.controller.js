@@ -1,5 +1,5 @@
 const NhaSanXuat = require("../models/nhaSanXuat.model");
-
+const db = require("../config/db"); 
 exports.getAll = async (req, res) => {
   try {
     const data = await NhaSanXuat.getAll();
