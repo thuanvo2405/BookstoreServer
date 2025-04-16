@@ -32,17 +32,8 @@ app.use("/api/chitietphieuxuat", chiTietPhieuXuatRoutes);
 app.use("/api/nhanvien", nhanVienRoutes);
 app.use("/api/khachhang", khachHangRoutes);
 
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, "uploads/"); // ảnh sẽ lưu vào thư mục uploads
-  },
-  filename: function (req, file, cb) {
-    const uniqueSuffix = Date.now() + "-" + file.originalname;
-    cb(null, uniqueSuffix); // ví dụ: 1712821234-meow.png
-  },
-});
+const storage = multer.memoryStorage(); // Thay đổi ở đây
 const upload = multer({ storage: storage });
-
 // API nhận ảnh
 app.post("/upload", upload.single("image"), async (req, res) => {
   try {
@@ -50,13 +41,17 @@ app.post("/upload", upload.single("image"), async (req, res) => {
       return res.status(400).json({ message: "Không có file nào được upload" });
     }
 
-    // Upload lên Cloudinary
-    const result = await cloudinary.uploader.upload(req.file.path, {
-      folder: "hanghoa",
+    // Upload trực tiếp từ buffer
+    const result = await new Promise((resolve, reject) => {
+      const stream = cloudinary.uploader.upload_stream(
+        { folder: "hanghoa" },
+        (error, result) => {
+          if (result) resolve(result);
+          else reject(error);
+        }
+      );
+      stream.end(req.file.buffer);
     });
-
-    // Xóa file tạm sau khi upload
-    fs.unlinkSync(req.file.path);
 
     res.json({
       message: "Upload thành công!",
