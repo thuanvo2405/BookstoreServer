@@ -35,22 +35,27 @@ app.use("/api/khachhang", khachHangRoutes);
 const storage = multer.memoryStorage(); // Thay đổi ở đây
 const upload = multer({ storage: storage });
 // API nhận ảnh
+// Endpoint upload trong app.js
 app.post("/upload", upload.single("image"), async (req, res) => {
   try {
     if (!req.file) {
+      console.log("Không có file được gửi lên");
       return res.status(400).json({ message: "Không có file nào được upload" });
     }
 
-    // Upload trực tiếp từ buffer
+    // Log thông tin file
+    console.log("File nhận được:", req.file);
+
+    // Upload lên Cloudinary từ buffer
     const result = await new Promise((resolve, reject) => {
-      const stream = cloudinary.uploader.upload_stream(
+      const uploadStream = cloudinary.uploader.upload_stream(
         { folder: "hanghoa" },
         (error, result) => {
-          if (result) resolve(result);
-          else reject(error);
+          if (error) reject(error);
+          else resolve(result);
         }
       );
-      stream.end(req.file.buffer); // Sử dụng buffer từ multer
+      uploadStream.end(req.file.buffer);
     });
 
     res.json({
@@ -59,6 +64,7 @@ app.post("/upload", upload.single("image"), async (req, res) => {
       publicId: result.public_id,
     });
   } catch (error) {
+    console.error("Lỗi upload:", error);
     res.status(500).json({
       message: "Lỗi khi upload ảnh",
       error: error.message,
