@@ -24,7 +24,10 @@ const HangHoa = {
   },
 
   create: async (data, connection) => {
-    const [result] = await connection.query("INSERT INTO HANG_HOA SET ?", data);
+    const [result] = await connection.query("INSERT INTO HANG_HOA SET ?", {
+      ...data,
+      HinhAnh: data.HinhAnh || null, // Thêm dòng này
+    });
     return result;
   },
 

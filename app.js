@@ -44,16 +44,31 @@ const storage = multer.diskStorage({
 const upload = multer({ storage: storage });
 
 // API nhận ảnh
-app.post("/upload", upload.single("image"), (req, res) => {
-  if (!req.file) {
-    return res.status(400).json({ message: "Không có file nào được upload" });
-  }
+app.post("/upload", upload.single("image"), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ message: "Không có file nào được upload" });
+    }
 
-  res.json({
-    message: "Upload thành công!",
-    fileName: req.file.filename,
-    filePath: `/uploads/${req.file.filename}`,
-  });
+    // Upload lên Cloudinary
+    const result = await cloudinary.uploader.upload(req.file.path, {
+      folder: "hanghoa",
+    });
+
+    // Xóa file tạm sau khi upload
+    fs.unlinkSync(req.file.path);
+
+    res.json({
+      message: "Upload thành công!",
+      url: result.secure_url,
+      publicId: result.public_id,
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: "Lỗi khi upload ảnh",
+      error: error.message,
+    });
+  }
 });
 
 const PORT = process.env.PORT || 3000;
