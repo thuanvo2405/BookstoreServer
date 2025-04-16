@@ -50,7 +50,7 @@ app.post("/upload", upload.single("image"), async (req, res) => {
           else reject(error);
         }
       );
-      stream.end(req.file.buffer);
+      stream.end(req.file.buffer); // Sử dụng buffer từ multer
     });
 
     res.json({
