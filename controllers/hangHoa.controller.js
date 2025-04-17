@@ -35,16 +35,16 @@ exports.create = async (req, res) => {
   let connection;
   try {
     // Log dữ liệu nhận được từ request
-    console.log("Dữ liệu nhận được:", req.body);
-    console.log("File nhận được:", req.file);
+    console.log("Dữ liệu nhận được từ frontend:", req.body);
+    console.log("File nhận được từ frontend:", req.file);
 
     const newHangHoa = {
       TenHangHoa: req.body.TenHangHoa,
-      Id_LoaiHangHoa: parseInt(req.body.Id_LoaiHangHoa),
-      Id_NhaSanXuat: parseInt(req.body.Id_NhaSanXuat),
-      GiaBan: parseFloat(req.body.GiaBan),
-      GiaNhap: parseFloat(req.body.GiaNhap),
-      SoLuongTonKho: parseInt(req.body.SoLuongTonKho),
+      Id_LoaiHangHoa: req.body.Id_LoaiHangHoa,
+      Id_NhaSanXuat: req.body.Id_NhaSanXuat,
+      GiaBan: req.body.GiaBan,
+      GiaNhap: req.body.GiaNhap,
+      SoLuongTonKho: req.body.SoLuongTonKho,
       MoTa: req.body.MoTa,
     };
 
@@ -59,7 +59,7 @@ exports.create = async (req, res) => {
       "MoTa",
     ];
     for (const field of requiredFields) {
-      if (!newHangHoa[field]) {
+      if (newHangHoa[field] === undefined || newHangHoa[field] === null) {
         return res
           .status(400)
           .json({ message: `Missing required field: ${field}` });
@@ -87,6 +87,7 @@ exports.create = async (req, res) => {
       });
       newHangHoa.anh_url = uploadResult.secure_url; // Lưu URL ảnh vào dữ liệu hàng hóa
     } else {
+      console.log("Không nhận được file ảnh từ frontend");
       return res.status(400).json({ message: "Vui lòng tải lên hình ảnh!" });
     }
 
