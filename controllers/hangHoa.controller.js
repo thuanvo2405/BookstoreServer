@@ -60,6 +60,7 @@ exports.create = async (req, res) => {
     ];
     for (const field of requiredFields) {
       if (newHangHoa[field] === undefined || newHangHoa[field] === null) {
+        console.log(`Thiếu trường bắt buộc: ${field}`);
         return res
           .status(400)
           .json({ message: `Missing required field: ${field}` });
@@ -69,6 +70,12 @@ exports.create = async (req, res) => {
     // Nếu có file ảnh được gửi lên, upload ảnh lên Cloudinary
     if (req.file) {
       console.log("Bắt đầu upload ảnh lên Cloudinary...");
+      console.log("Thông tin file:", {
+        originalname: req.file.originalname,
+        mimetype: req.file.mimetype,
+        size: req.file.size,
+      });
+
       const stream = Readable.from(req.file.buffer);
       const uploadResult = await new Promise((resolve, reject) => {
         const uploadStream = cloudinary.uploader.upload_stream(
@@ -78,7 +85,10 @@ exports.create = async (req, res) => {
               console.error("Lỗi khi upload ảnh lên Cloudinary:", error);
               reject(error);
             } else {
-              console.log("Upload ảnh thành công:", result.secure_url);
+              console.log("Upload ảnh thành công:", {
+                url: result.secure_url,
+                public_id: result.public_id,
+              });
               resolve(result);
             }
           }
@@ -92,7 +102,9 @@ exports.create = async (req, res) => {
     }
 
     connection = await db.getConnection();
+    console.log("Đã kết nối database, bắt đầu insert dữ liệu...");
     const result = await HangHoa.create(newHangHoa, connection);
+    console.log("Kết quả insert:", result);
 
     res.status(201).json({ id: result.insertId, ...newHangHoa });
   } catch (error) {
@@ -103,6 +115,7 @@ exports.create = async (req, res) => {
     });
   } finally {
     if (connection) {
+      console.log("Giải phóng kết nối database");
       connection.release();
     }
   }
