@@ -38,15 +38,9 @@ const upload = multer({ storage: storage });
 // Endpoint upload trong app.js
 app.post("/upload", upload.single("image"), async (req, res) => {
   try {
-    if (!req.file) {
-      console.log("Không có file được gửi lên");
-      return res.status(400).json({ message: "Không có file nào được upload" });
-    }
+    if (!req.file) return res.status(400).json({ message: "No file uploaded" });
 
-    // Log thông tin file
-    console.log("File nhận được:", req.file);
-
-    // Upload lên Cloudinary từ buffer
+    // Upload to Cloudinary
     const result = await new Promise((resolve, reject) => {
       const uploadStream = cloudinary.uploader.upload_stream(
         { folder: "hanghoa" },
@@ -58,15 +52,15 @@ app.post("/upload", upload.single("image"), async (req, res) => {
       uploadStream.end(req.file.buffer);
     });
 
+    // Trả về response đúng cấu trúc
     res.json({
       message: "Upload thành công!",
       url: result.secure_url,
       publicId: result.public_id,
     });
   } catch (error) {
-    console.error("Lỗi upload:", error);
     res.status(500).json({
-      message: "Lỗi khi upload ảnh",
+      message: "Lỗi server",
       error: error.message,
     });
   }

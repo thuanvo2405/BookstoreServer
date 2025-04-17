@@ -34,6 +34,42 @@ exports.create = async (req, res) => {
   try {
     const newHangHoa = req.body;
 
+    // Kiểm tra dữ liệu đầu vào
+    const requiredFields = [
+      "TenHangHoa",
+      "Id_LoaiHangHoa",
+      "Id_NhaSanXuat",
+      "GiaBan",
+      "GiaNhap",
+      "SoLuongTonKho",
+      "MoTa",
+    ];
+    for (const field of requiredFields) {
+      if (!newHangHoa[field]) {
+        return res
+          .status(400)
+          .json({ message: `Missing required field: ${field}` });
+      }
+    }
+
+    // Nếu có file ảnh được gửi lên, upload ảnh lên Cloudinary
+    if (req.file) {
+      const formData = new FormData();
+      formData.append("image", req.file.buffer.toString("base64")); // Chuyển buffer thành base64
+
+      const uploadResponse = await fetch("http://localhost:3000/upload", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!uploadResponse.ok) {
+        throw new Error("Upload ảnh thất bại");
+      }
+
+      const uploadData = await uploadResponse.json();
+      newHangHoa.anh_url = uploadData.url; // Lưu URL ảnh vào dữ liệu hàng hóa
+    }
+
     connection = await db.getConnection();
     const result = await HangHoa.create(newHangHoa, connection);
 

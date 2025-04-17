@@ -1,6 +1,10 @@
 const express = require("express");
 const router = express.Router();
 const controller = require("../controllers/hangHoa.controller");
+const multer = require("multer");
+
+const storage = multer.memoryStorage();
+const upload = multer({ storage: storage });
 
 router.get("/", controller.getAll);
 /**
@@ -36,7 +40,7 @@ router.get("/:id", controller.getById);
  *         description: Thông tin hàng hóa
  */
 
-router.post("/", controller.create);
+router.post("/", upload.single("image"), controller.create);
 /**
  * @swagger
  * /api/hanghoa:
@@ -45,9 +49,27 @@ router.post("/", controller.create);
  *     requestBody:
  *       required: true
  *       content:
- *         application/json:
+ *         multipart/form-data:
  *           schema:
  *             type: object
+ *             properties:
+ *               TenHangHoa:
+ *                 type: string
+ *               Id_LoaiHangHoa:
+ *                 type: integer
+ *               Id_NhaSanXuat:
+ *                 type: integer
+ *               GiaBan:
+ *                 type: number
+ *               GiaNhap:
+ *                 type: number
+ *               SoLuongTonKho:
+ *                 type: integer
+ *               MoTa:
+ *                 type: string
+ *               image:
+ *                 type: string
+ *                 format: binary
  *     responses:
  *       201:
  *         description: Hàng hóa được tạo

@@ -24,9 +24,25 @@ const HangHoa = {
   },
 
   create: async (data, connection) => {
+    // Kiểm tra dữ liệu đầu vào
+    const requiredFields = [
+      "TenHangHoa",
+      "Id_LoaiHangHoa",
+      "Id_NhaSanXuat",
+      "GiaBan",
+      "GiaNhap",
+      "SoLuongTonKho",
+      "MoTa",
+    ];
+    for (const field of requiredFields) {
+      if (!data[field]) {
+        throw new Error(`Missing required field: ${field}`);
+      }
+    }
+
     const [result] = await connection.query("INSERT INTO HANG_HOA SET ?", {
       ...data,
-      HinhAnh: data.HinhAnh || null, // Thêm dòng này
+      anh_url: data.anh_url || null, // Sửa HinhAnh thành anh_url
     });
     return result;
   },
