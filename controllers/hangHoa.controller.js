@@ -1,5 +1,7 @@
 const HangHoa = require("../models/hangHoa.model");
 const db = require("../config/db");
+const cloudinary = require("../config/cloudinary");
+const { Readable } = require("stream");
 
 exports.getAll = async (req, res) => {
   try {
@@ -32,7 +34,19 @@ exports.getById = async (req, res) => {
 exports.create = async (req, res) => {
   let connection;
   try {
-    const newHangHoa = req.body;
+    // Log dữ liệu nhận được từ request
+    console.log("Dữ liệu nhận được:", req.body);
+    console.log("File nhận được:", req.file);
+
+    const newHangHoa = {
+      TenHangHoa: req.body.TenHangHoa,
+      Id_LoaiHangHoa: parseInt(req.body.Id_LoaiHangHoa),
+      Id_NhaSanXuat: parseInt(req.body.Id_NhaSanXuat),
+      GiaBan: parseFloat(req.body.GiaBan),
+      GiaNhap: parseFloat(req.body.GiaNhap),
+      SoLuongTonKho: parseInt(req.body.SoLuongTonKho),
+      MoTa: req.body.MoTa,
+    };
 
     // Kiểm tra dữ liệu đầu vào
     const requiredFields = [
@@ -54,20 +68,26 @@ exports.create = async (req, res) => {
 
     // Nếu có file ảnh được gửi lên, upload ảnh lên Cloudinary
     if (req.file) {
-      const formData = new FormData();
-      formData.append("image", req.file.buffer.toString("base64")); // Chuyển buffer thành base64
-
-      const uploadResponse = await fetch("http://localhost:3000/upload", {
-        method: "POST",
-        body: formData,
+      console.log("Bắt đầu upload ảnh lên Cloudinary...");
+      const stream = Readable.from(req.file.buffer);
+      const uploadResult = await new Promise((resolve, reject) => {
+        const uploadStream = cloudinary.uploader.upload_stream(
+          { folder: "hanghoa" },
+          (error, result) => {
+            if (error) {
+              console.error("Lỗi khi upload ảnh lên Cloudinary:", error);
+              reject(error);
+            } else {
+              console.log("Upload ảnh thành công:", result.secure_url);
+              resolve(result);
+            }
+          }
+        );
+        stream.pipe(uploadStream);
       });
-
-      if (!uploadResponse.ok) {
-        throw new Error("Upload ảnh thất bại");
-      }
-
-      const uploadData = await uploadResponse.json();
-      newHangHoa.anh_url = uploadData.url; // Lưu URL ảnh vào dữ liệu hàng hóa
+      newHangHoa.anh_url = uploadResult.secure_url; // Lưu URL ảnh vào dữ liệu hàng hóa
+    } else {
+      return res.status(400).json({ message: "Vui lòng tải lên hình ảnh!" });
     }
 
     connection = await db.getConnection();
@@ -75,6 +95,7 @@ exports.create = async (req, res) => {
 
     res.status(201).json({ id: result.insertId, ...newHangHoa });
   } catch (error) {
+    console.error("Lỗi trong hàm create:", error);
     res.status(500).json({
       message: "Lỗi khi tạo hàng hóa",
       error: error.message,
