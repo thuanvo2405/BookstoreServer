@@ -1,51 +1,76 @@
 const db = require("../config/db");
 
-const PhieuXuatHang = {
-  getAll: async () => {
-    const [rows] = await db.query(
-      `SELECT pxh.*, nv.HoTen AS TenNhanVien, kh.HoTen AS TenKhachHang 
-       FROM PHIEU_XUAT pxh 
-       LEFT JOIN NHAN_VIEN nv ON pxh.MaNhanVien = nv.Id_NhanVien 
-       LEFT JOIN KHACH_HANG kh ON pxh.MaKhachHang = kh.Id_KhachHang`
-    );
-    return rows;
-  },
-
-  getById: async (id) => {
-    const [rows] = await db.query(
-      `SELECT pxh.*, nv.HoTen AS TenNhanVien, kh.HoTen AS TenKhachHang 
-       FROM PHIEU_XUAT pxh 
-       LEFT JOIN NHAN_VIEN nv ON pxh.MaNhanVien = nv.Id_NhanVien 
-       LEFT JOIN KHACH_HANG kh ON pxh.MaKhachHang = kh.Id_KhachHang 
-       WHERE pxh.Id_PhieuXuat = ?`,
-      [id]
-    );
-    return rows;
-  },
-
-  create: async (data, connection) => {
-    const [result] = await connection.query(
-      "INSERT INTO PHIEU_XUAT SET ?",
-      data
-    );
-    return result;
-  },
-
-  update: async (id, data, connection) => {
-    const [result] = await connection.query(
-      "UPDATE PHIEU_XUAT SET ? WHERE Id_PhieuXuat = ?",
-      [data, id]
-    );
-    return result;
-  },
-
-  delete: async (id, connection) => {
-    const [result] = await connection.query(
-      "DELETE FROM PHIEU_XUAT WHERE Id_PhieuXuat = ?",
-      [id]
-    );
-    return result;
-  },
+const checkInventory = (maHangHoa, soLuong) => {
+  return new Promise((resolve, reject) => {
+    const sql = "SELECT SoLuongTonKho FROM HANG_HOA WHERE Id_HangHoa = ?";
+    db.query(sql, [maHangHoa], (err, results) => {
+      if (err) return reject(err);
+      if (results.length === 0) return reject("Hàng hóa không tồn tại");
+      const tonKho = results[0].SoLuongTonKho;
+      if (tonKho < soLuong) return reject("Không đủ hàng trong kho");
+      resolve(true);
+    });
+  });
 };
 
-module.exports = PhieuXuatHang;
+const createPhieuXuat = (phieu, chiTiet) => {
+  return new Promise((resolve, reject) => {
+    db.beginTransaction((err) => {
+      if (err) return reject(err);
+
+      const sqlPhieu = `
+        INSERT INTO PHIEU_XUAT (NgayXuat, GhiChu, MaNhanVien, MaKhachHang, id_HoaDon, PhuongThucThanhToan)
+        VALUES (?, ?, ?, ?, ?, ?)`;
+      db.query(
+        sqlPhieu,
+        [
+          phieu.NgayXuat,
+          phieu.GhiChu,
+          phieu.MaNhanVien,
+          phieu.MaKhachHang,
+          phieu.id_HoaDon,
+          phieu.PhuongThucThanhToan,
+        ],
+        (err, result) => {
+          if (err) return db.rollback(() => reject(err));
+          const maPhieu = result.insertId;
+
+          const sqlChiTiet = `
+            INSERT INTO CHI_TIET_PHIEU_XUAT (MaPhieuXuat, MaHangHoa, DonGia, SoLuong)
+            VALUES ?`;
+          const values = chiTiet.map((item) => [
+            maPhieu,
+            item.MaHangHoa,
+            item.DonGia,
+            item.SoLuong,
+          ]);
+          db.query(sqlChiTiet, [values], (err) => {
+            if (err) return db.rollback(() => reject(err));
+
+            // Cập nhật số lượng tồn kho
+            const updates = chiTiet.map((item) => {
+              return new Promise((res, rej) => {
+                const updateSql = `UPDATE HANG_HOA SET SoLuongTonKho = SoLuongTonKho - ? WHERE Id_HangHoa = ?`;
+                db.query(updateSql, [item.SoLuong, item.MaHangHoa], (err) => {
+                  if (err) return rej(err);
+                  res();
+                });
+              });
+            });
+
+            Promise.all(updates)
+              .then(() => {
+                db.commit((err) => {
+                  if (err) return db.rollback(() => reject(err));
+                  resolve({ maPhieu });
+                });
+              })
+              .catch((err) => db.rollback(() => reject(err)));
+          });
+        }
+      );
+    });
+  });
+};
+
+module.exports = { checkInventory, createPhieuXuat };
