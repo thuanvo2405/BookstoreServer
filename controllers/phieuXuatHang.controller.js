@@ -12,18 +12,22 @@ const taoPhieuXuat = async (req, res) => {
   try {
     const { phieu, chiTiet } = req.body;
 
-    // Kiểm tra số lượng tồn kho cho từng mặt hàng
+    // Kiểm tra số lượng tồn kho từng mặt hàng
     for (let item of chiTiet) {
       await checkInventory(item.MaHangHoa, item.SoLuong);
     }
 
-    // Nếu pass, tiến hành tạo phiếu xuất
+    // Tạo phiếu xuất nếu tất cả pass
     const result = await createPhieuXuat(phieu, chiTiet);
-    res
-      .status(201)
-      .json({ message: "Tạo phiếu xuất thành công", maPhieu: result.maPhieu });
+    return res.status(201).json({
+      message: "Tạo phiếu xuất thành công",
+      maPhieu: result.maPhieu,
+    });
   } catch (err) {
-    res.status(400).json({ error: err.toString() });
+    console.error("Lỗi tạo phiếu xuất:", err);
+    return res.status(400).json({
+      error: err.toString(),
+    });
   }
 };
 
