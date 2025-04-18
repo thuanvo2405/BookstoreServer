@@ -22,7 +22,9 @@ const hoaDonRoutes = require("./routes/hoaDon.routes");
 const chiTietPhieuXuatRoutes = require("./routes/chiTietPhieuXuat.routes");
 const nhanVienRoutes = require("./routes/nhanVien.routes");
 const khachHangRoutes = require("./routes/khachHang.routes");
+const baoCaoRoutes = require("./routes/baocao.routes");
 
+app.use("/api/bao-cao", baoCaoRoutes);
 app.use("/api/hanghoa", hangHoaRoutes);
 app.use("/api/loaihanghoa", loaiHangHoaRoutes);
 app.use("/api/nhasanxuat", nhaSanXuatRoutes);
