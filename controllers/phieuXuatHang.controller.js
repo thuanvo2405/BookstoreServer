@@ -33,4 +33,30 @@ const taoPhieuXuat = async (req, res) => {
   }
 };
 
-module.exports = { taoPhieuXuat };
+const getAllPhieuXuat = async (req, res) => {
+  try {
+    const [results] = await db.query(`
+      SELECT 
+        px.Id_PhieuXuat,
+        px.NgayXuat,
+        px.GhiChu,
+        px.MaNhanVien,
+        nv.HoTen AS TenNhanVien,
+        px.MaKhachHang,
+        kh.HoTen AS TenKhachHang,
+        px.id_HoaDon,
+        px.PhuongThucThanhToan
+      FROM PHIEU_XUAT px
+      LEFT JOIN NHAN_VIEN nv ON px.MaNhanVien = nv.Id_NhanVien
+      LEFT JOIN KHACH_HANG kh ON px.MaKhachHang = kh.Id_KhachHang
+    `);
+    return res.status(200).json(results);
+  } catch (err) {
+    console.error("Lỗi khi lấy danh sách phiếu xuất:", err);
+    return res.status(500).json({
+      error: "Không thể lấy danh sách phiếu xuất: " + err.message,
+    });
+  }
+};
+
+module.exports = { taoPhieuXuat, getAllPhieuXuat };
