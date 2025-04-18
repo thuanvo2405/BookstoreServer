@@ -9,6 +9,8 @@ const {
 } = require("../models/phieuXuatHang.model");
 
 const taoPhieuXuat = async (req, res) => {
+  console.log("Body nhận từ Postman:", req.body);
+
   try {
     const { phieu, chiTiet } = req.body;
 
