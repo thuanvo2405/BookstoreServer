@@ -1,37 +1,103 @@
 const db = require("../config/db");
 
 const HoaDon = {
+  create: async (hoaDon) => {
+    const conn = await db.getConnection();
+    try {
+      await conn.beginTransaction();
+
+      const [result] = await conn.query(
+        `INSERT INTO HOA_DON (NgayXuat, TongTien, GhiChu)
+         VALUES (?, ?, ?)`,
+        [hoaDon.NgayXuat, hoaDon.TongTien, hoaDon.GhiChu]
+      );
+
+      await conn.commit();
+      return { id: result.insertId };
+    } catch (err) {
+      await conn.rollback();
+      throw err;
+    } finally {
+      conn.release();
+    }
+  },
+
   getAll: async () => {
-    const [rows] = await db.query("SELECT * FROM HOA_DON");
+    const [rows] = await db.query(`
+      SELECT 
+        hd.Id_HoaDon,
+        hd.NgayXuat,
+        hd.TongTien,
+        hd.GhiChu
+      FROM HOA_DON hd
+    `);
     return rows;
   },
 
-  getById: async (id) => {
-    const [rows] = await db.query("SELECT * FROM HOA_DON WHERE Id_HoaDon = ?", [
-      id,
-    ]);
-    return rows;
-  },
-
-  create: async (data, connection) => {
-    const [result] = await connection.query("INSERT INTO HOA_DON SET ?", data);
-    return result;
-  },
-
-  update: async (id, data, connection) => {
-    const [result] = await connection.query(
-      "UPDATE HOA_DON SET ? WHERE Id_HoaDon = ?",
-      [data, id]
-    );
-    return result;
-  },
-
-  delete: async (id, connection) => {
-    const [result] = await connection.query(
-      "DELETE FROM HOA_DON WHERE Id_HoaDon = ?",
+  getByIdWithPhieuXuat: async (id) => {
+    const [hoaDonRows] = await db.query(
+      `
+      SELECT 
+        hd.Id_HoaDon,
+        hd.NgayXuat,
+        hd.TongTien,
+        hd.GhiChu
+      FROM HOA_DON hd
+      WHERE hd.Id_HoaDon = ?
+    `,
       [id]
     );
-    return result;
+
+    if (hoaDonRows.length === 0) {
+      throw new Error("Hóa đơn không tồn tại");
+    }
+
+    const [phieuXuatRows] = await db.query(
+      `
+      SELECT 
+        px.Id_PhieuXuat,
+        px.NgayXuat,
+        px.GhiChu,
+        px.MaNhanVien,
+        nv.HoTen AS TenNhanVien,
+        px.MaKhachHang,
+        kh.HoTen AS TenKhachHang,
+        px.PhuongThucThanhToan
+      FROM PHIEU_XUAT px
+      LEFT JOIN NHAN_VIEN nv ON px.MaNhanVien = nv.Id_NhanVien
+      LEFT JOIN KHACH_HANG kh ON px.MaKhachHang = kh.Id_KhachHang
+      WHERE px.id_HoaDon = ?
+    `,
+      [id]
+    );
+
+    const [chiTietPhieuXuatRows] = await db.query(
+      `
+      SELECT 
+        ctpx.MaPhieuXuat,
+        ctpx.MaHangHoa,
+        hh.TenHangHoa,
+        ctpx.DonGia,
+        ctpx.SoLuong
+      FROM CHI_TIET_PHIEU_XUAT ctpx
+      JOIN HANG_HOA hh ON ctpx.MaHangHoa = hh.Id_HangHoa
+      WHERE ctpx.MaPhieuXuat IN (
+        SELECT Id_PhieuXuat FROM PHIEU_XUAT WHERE id_HoaDon = ?
+      )
+    `,
+      [id]
+    );
+
+    // Tổ chức dữ liệu
+    const hoaDon = hoaDonRows[0];
+    hoaDon.phieuXuat = phieuXuatRows.map((px) => ({
+      ...px,
+      chiTiet: chiTietPhieuXuatRows.filter(
+        (ct) => ct.MaPhieuXuat === px.Id_PhieuXuat
+      ),
+    }));
+
+    return hoaDon;
   },
 };
 
