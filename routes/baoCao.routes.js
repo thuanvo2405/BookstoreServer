@@ -8,7 +8,7 @@ const {
   getNhanVienBanTotNhat,
   getDoanhThuTheoLoai,
   getDoanhThuTheoPhuongThuc,
-} = require("../controllers/baocao.controller");
+} = require("../controllers/baoCao.controller");
 
 router.get("/doanh-thu", getDoanhThu);
 router.get("/doanh-thu-theo-thoi-gian", getDoanhThuTheoThoiGian);
