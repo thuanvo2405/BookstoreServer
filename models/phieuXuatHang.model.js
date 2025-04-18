@@ -4,10 +4,14 @@ const checkInventory = (maHangHoa, soLuong) => {
   return new Promise((resolve, reject) => {
     const sql = "SELECT SoLuongTonKho FROM HANG_HOA WHERE Id_HangHoa = ?";
     db.query(sql, [maHangHoa], (err, results) => {
-      if (err) return reject(err);
+      if (err) return reject("Lỗi khi truy vấn kho: " + err);
       if (results.length === 0) return reject("Hàng hóa không tồn tại");
       const tonKho = results[0].SoLuongTonKho;
-      if (tonKho < soLuong) return reject("Không đủ hàng trong kho");
+      if (tonKho < soLuong) {
+        return reject(
+          `Không đủ hàng trong kho. Tồn kho: ${tonKho}, cần: ${soLuong}`
+        );
+      }
       resolve(true);
     });
   });
@@ -16,7 +20,7 @@ const checkInventory = (maHangHoa, soLuong) => {
 const createPhieuXuat = (phieu, chiTiet) => {
   return new Promise((resolve, reject) => {
     db.beginTransaction((err) => {
-      if (err) return reject(err);
+      if (err) return reject("Lỗi bắt đầu transaction: " + err);
 
       const sqlPhieu = `
         INSERT INTO PHIEU_XUAT (NgayXuat, GhiChu, MaNhanVien, MaKhachHang, id_HoaDon, PhuongThucThanhToan)
@@ -32,7 +36,8 @@ const createPhieuXuat = (phieu, chiTiet) => {
           phieu.PhuongThucThanhToan,
         ],
         (err, result) => {
-          if (err) return db.rollback(() => reject(err));
+          if (err)
+            return db.rollback(() => reject("Lỗi tạo phiếu xuất: " + err));
           const maPhieu = result.insertId;
 
           const sqlChiTiet = `
@@ -45,14 +50,15 @@ const createPhieuXuat = (phieu, chiTiet) => {
             item.SoLuong,
           ]);
           db.query(sqlChiTiet, [values], (err) => {
-            if (err) return db.rollback(() => reject(err));
+            if (err)
+              return db.rollback(() => reject("Lỗi chi tiết phiếu: " + err));
 
-            // Cập nhật số lượng tồn kho
+            // Cập nhật tồn kho
             const updates = chiTiet.map((item) => {
               return new Promise((res, rej) => {
                 const updateSql = `UPDATE HANG_HOA SET SoLuongTonKho = SoLuongTonKho - ? WHERE Id_HangHoa = ?`;
                 db.query(updateSql, [item.SoLuong, item.MaHangHoa], (err) => {
-                  if (err) return rej(err);
+                  if (err) return rej("Lỗi cập nhật tồn kho: " + err);
                   res();
                 });
               });
@@ -61,7 +67,8 @@ const createPhieuXuat = (phieu, chiTiet) => {
             Promise.all(updates)
               .then(() => {
                 db.commit((err) => {
-                  if (err) return db.rollback(() => reject(err));
+                  if (err)
+                    return db.rollback(() => reject("Lỗi commit: " + err));
                   resolve({ maPhieu });
                 });
               })
