@@ -2,16 +2,28 @@ const db = require("../config/db");
 
 const checkInventory = (maHangHoa, soLuong) => {
   return new Promise((resolve, reject) => {
+    console.log(`>>> Kiểm tra tồn kho: HH ${maHangHoa}, SL ${soLuong}`);
+
     const sql = "SELECT SoLuongTonKho FROM HANG_HOA WHERE Id_HangHoa = ?";
     db.query(sql, [maHangHoa], (err, results) => {
-      if (err) return reject("Lỗi khi truy vấn kho: " + err);
-      if (results.length === 0) return reject("Hàng hóa không tồn tại");
-      const tonKho = results[0].SoLuongTonKho;
-      if (tonKho < soLuong) {
-        return reject(
-          `Không đủ hàng trong kho. Tồn kho: ${tonKho}, cần: ${soLuong}`
-        );
+      if (err) {
+        console.error("Lỗi query tồn kho:", err);
+        return reject("Lỗi kiểm tra tồn kho: " + err);
       }
+      if (results.length === 0) {
+        console.error("Không tìm thấy hàng hóa:", maHangHoa);
+        return reject("Hàng hóa không tồn tại");
+      }
+
+      const tonKho = results[0].SoLuongTonKho;
+      console.log(`>>> HH ${maHangHoa} tồn kho: ${tonKho}`);
+      if (tonKho < soLuong) {
+        console.warn(
+          `>>> HH ${maHangHoa} không đủ hàng: yêu cầu ${soLuong}, còn ${tonKho}`
+        );
+        return reject("Không đủ hàng trong kho");
+      }
+
       resolve(true);
     });
   });
