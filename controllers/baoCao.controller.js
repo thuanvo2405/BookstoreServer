@@ -173,6 +173,12 @@ const getNhanVienBanTotNhat = async (req, res) => {
 const getDoanhThuTheoLoai = async (req, res) => {
   try {
     const { startDate, endDate } = req.query;
+    // Kiểm tra xem startDate và endDate có tồn tại không
+    if (!startDate || !endDate) {
+      return res
+        .status(400)
+        .json({ error: "Thiếu tham số startDate hoặc endDate" });
+    }
     const currentDate = new Date();
     if (new Date(endDate) > currentDate) {
       return res
@@ -206,8 +212,8 @@ const getDoanhThuTheoLoai = async (req, res) => {
     res.json({ doanhThuTheoLoai: doanhThu, soLuongTheoLoai: soLuong });
   } catch (error) {
     console.error("Lỗi trong getDoanhThuTheoLoai:", error, {
-      startDate,
-      endDate,
+      startDate: req.query.startDate || "undefined",
+      endDate: req.query.endDate || "undefined",
     });
     res.status(500).json({ error: error.message });
   }
