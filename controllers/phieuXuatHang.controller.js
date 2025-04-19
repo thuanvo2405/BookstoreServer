@@ -59,4 +59,24 @@ const getAllPhieuXuat = async (req, res) => {
   }
 };
 
-module.exports = { taoPhieuXuat, getAllPhieuXuat };
+const updatePhieuXuat = async (req, res) => {
+  const { id } = req.params;
+  const { id_HoaDon } = req.body;
+  try {
+    const [result] = await db.query(
+      "UPDATE PHIEU_XUAT SET id_HoaDon = ? WHERE Id_PhieuXuat = ?",
+      [id_HoaDon, id]
+    );
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ error: "Phiếu xuất không tồn tại" });
+    }
+    return res.status(200).json({ message: "Cập nhật phiếu xuất thành công" });
+  } catch (err) {
+    console.error("Lỗi khi cập nhật phiếu xuất:", err);
+    return res
+      .status(500)
+      .json({ error: "Lỗi khi cập nhật phiếu xuất: " + err.message });
+  }
+};
+
+module.exports = { taoPhieuXuat, getAllPhieuXuat, updatePhieuXuat };
