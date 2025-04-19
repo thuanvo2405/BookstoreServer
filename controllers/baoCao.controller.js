@@ -173,18 +173,27 @@ const getNhanVienBanTotNhat = async (req, res) => {
 const getDoanhThuTheoLoai = async (req, res) => {
   try {
     const { startDate, endDate } = req.query;
-    // Kiểm tra xem startDate và endDate có tồn tại không
+
     if (!startDate || !endDate) {
       return res
         .status(400)
         .json({ error: "Thiếu tham số startDate hoặc endDate" });
     }
-    const currentDate = new Date();
-    if (new Date(endDate) > currentDate) {
+
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    const now = new Date();
+
+    if (isNaN(start) || isNaN(end)) {
+      return res.status(400).json({ error: "Ngày không hợp lệ" });
+    }
+
+    if (end > now) {
       return res
         .status(400)
         .json({ error: "Ngày kết thúc không thể là tương lai" });
     }
+
     const doanhThuQuery = `
       SELECT 
         lh.TenLoai AS type,
@@ -194,9 +203,10 @@ const getDoanhThuTheoLoai = async (req, res) => {
       JOIN LOAI_HANG_HOA lh ON hh.MaLoai = lh.Id_Loai
       JOIN PHIEU_XUAT px ON ct.MaPhieuXuat = px.Id_PhieuXuat
       WHERE px.NgayXuat BETWEEN ? AND ?
-      GROUP BY lh.Id_Loai`;
-    console.log("Thực thi doanhThuQuery:", doanhThuQuery, [startDate, endDate]);
+      GROUP BY lh.Id_Loai, lh.TenLoai`;
+
     const [doanhThu] = await db.query(doanhThuQuery, [startDate, endDate]);
+
     const soLuongQuery = `
       SELECT 
         lh.TenLoai AS type,
@@ -206,9 +216,10 @@ const getDoanhThuTheoLoai = async (req, res) => {
       JOIN LOAI_HANG_HOA lh ON hh.MaLoai = lh.Id_Loai
       JOIN PHIEU_XUAT px ON ct.MaPhieuXuat = px.Id_PhieuXuat
       WHERE px.NgayXuat BETWEEN ? AND ?
-      GROUP BY lh.Id_Loai`;
-    console.log("Thực thi soLuongQuery:", soLuongQuery, [startDate, endDate]);
+      GROUP BY lh.Id_Loai, lh.TenLoai`;
+
     const [soLuong] = await db.query(soLuongQuery, [startDate, endDate]);
+
     res.json({ doanhThuTheoLoai: doanhThu, soLuongTheoLoai: soLuong });
   } catch (error) {
     console.error("Lỗi trong getDoanhThuTheoLoai:", error, {
