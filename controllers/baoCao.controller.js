@@ -39,9 +39,6 @@ const getDoanhThu = async (req, res) => {
 
 // 2. Doanh thu theo thời gian (cho biểu đồ)
 const getDoanhThuTheoThoiGian = async (req, res) => {
-  let query = "",
-    format = "",
-    groupBy = "";
   try {
     const { startDate, endDate, type } = req.query;
     const currentDate = new Date();
@@ -51,38 +48,35 @@ const getDoanhThuTheoThoiGian = async (req, res) => {
         .json({ error: "Ngày kết thúc không thể là tương lai" });
     }
 
+    let groupBy = "";
     switch (type) {
       case "ngay":
-        format = "%Y-%m-%d";
         groupBy = "DATE(px.NgayXuat)";
         break;
       case "tuan":
-        format = "%Y-%u";
         groupBy = "YEARWEEK(px.NgayXuat)";
         break;
       case "thang":
-        format = "%Y-%m";
         groupBy = "DATE_FORMAT(px.NgayXuat, '%Y-%m')";
         break;
       case "nam":
-        format = "%Y";
         groupBy = "YEAR(px.NgayXuat)";
         break;
       default:
         return res.status(400).json({ error: "Loại báo cáo không hợp lệ" });
     }
 
-    query = `
+    const query = `
       SELECT 
-        DATE_FORMAT(px.NgayXuat, ?) AS date,
+        DATE_FORMAT(px.NgayXuat, '%d/%m/%Y') AS date,
         SUM(ct.DonGia * ct.SoLuong) AS value
       FROM PHIEU_XUAT px
       JOIN CHI_TIET_PHIEU_XUAT ct ON px.Id_PhieuXuat = ct.MaPhieuXuat
       WHERE DATE(px.NgayXuat) BETWEEN ? AND ?
       GROUP BY ${groupBy}
-      ORDER BY date`;
+      ORDER BY px.NgayXuat`;
 
-    const [results] = await db.query(query, [format, startDate, endDate]);
+    const [results] = await db.query(query, [startDate, endDate]);
 
     res.json(
       results.map((item) => ({
@@ -91,10 +85,7 @@ const getDoanhThuTheoThoiGian = async (req, res) => {
       }))
     );
   } catch (error) {
-    console.error("Lỗi trong getDoanhThuTheoThoiGian:", error, {
-      query,
-      params: [format, startDate, endDate],
-    });
+    console.error("Lỗi trong getDoanhThuTheoThoiGian:", error);
     res.status(500).json({ error: error.message });
   }
 };
@@ -182,7 +173,6 @@ const getNhanVienBanTotNhat = async (req, res) => {
 const getDoanhThuTheoLoai = async (req, res) => {
   try {
     const { startDate, endDate } = req.query;
-
     if (!startDate || !endDate) {
       return res
         .status(400)
@@ -190,66 +180,75 @@ const getDoanhThuTheoLoai = async (req, res) => {
     }
 
     const [doanhThu] = await db.query(
-      `
-      SELECT 
-        lh.TenLoai AS type,
-        SUM(ct.DonGia * ct.SoLuong) AS value
-      FROM CHI_TIET_PHIEU_XUAT ct
-      JOIN HANG_HOA hh ON ct.MaHangHoa = hh.Id_HangHoa
-      JOIN LOAI_HANG_HOA lh ON hh.MaLoai = lh.Id_Loai
-      JOIN PHIEU_XUAT px ON ct.MaPhieuXuat = px.Id_PhieuXuat
-      WHERE DATE(px.NgayXuat) BETWEEN ? AND ?
-      GROUP BY lh.Id_Loai, lh.TenLoai
-    `,
+      `SELECT 
+         lh.TenLoai AS type,
+         SUM(ct.DonGia * ct.SoLuong) AS value
+       FROM CHI_TIET_PHIEU_XUAT ct
+       JOIN HANG_HOA hh ON ct.MaHangHoa = hh.Id_HangHoa
+       JOIN LOAI_HANG_HOA lh ON hh.MaLoai = lh.Id_Loai
+       JOIN PHIEU_XUAT px ON ct.MaPhieuXuat = px.Id_PhieuXuat
+       WHERE DATE(px.NgayXuat) BETWEEN ? AND ?
+       GROUP BY lh.Id_Loai, lh.TenLoai`,
       [startDate, endDate]
     );
 
     const [soLuong] = await db.query(
-      `
-      SELECT 
-        lh.TenLoai AS type,
-        SUM(ct.SoLuong) AS value
-      FROM CHI_TIET_PHIEU_XUAT ct
-      JOIN HANG_HOA hh ON ct.MaHangHoa = hh.Id_HangHoa
-      JOIN LOAI_HANG_HOA lh ON hh.MaLoai = lh.Id_Loai
-      JOIN PHIEU_XUAT px ON ct.MaPhieuXuat = px.Id_PhieuXuat
-      WHERE DATE(px.NgayXuat) BETWEEN ? AND ?
-      GROUP BY lh.Id_Loai, lh.TenLoai
-    `,
+      `SELECT 
+         lh.TenLoai AS type,
+         SUM(ct.SoLuong) AS value
+       FROM CHI_TIET_PHIEU_XUAT ct
+       JOIN HANG_HOA hh ON ct.MaHangHoa = hh.Id_HangHoa
+       JOIN LOAI_HANG_HOA lh ON hh.MaLoai = lh.Id_Loai
+       JOIN PHIEU_XUAT px ON ct.MaPhieuXuat = px.Id_PhieuXuat
+       WHERE DATE(px.NgayXuat) BETWEEN ? AND ?
+       GROUP BY lh.Id_Loai, lh.TenLoai`,
       [startDate, endDate]
     );
 
-    res.json({ doanhThuTheoLoai: doanhThu, soLuongTheoLoai: soLuong });
+    const totalDoanhThu = doanhThu.reduce(
+      (sum, item) => sum + Number(item.value),
+      0
+    );
+    const totalSoLuong = soLuong.reduce(
+      (sum, item) => sum + Number(item.value),
+      0
+    );
+
+    res.json({
+      doanhThuTheoLoai: doanhThu,
+      soLuongTheoLoai: soLuong,
+      totalDoanhThu,
+      totalSoLuong,
+    });
   } catch (error) {
     console.error("Lỗi trong getDoanhThuTheoLoai:", error);
     res.status(500).json({ error: error.message });
   }
 };
 
-// 7. Doanh thu theo phương thức thanh toán
 const getDoanhThuTheoPhuongThuc = async (req, res) => {
   try {
     const { startDate, endDate } = req.query;
-
     const [results] = await db.query(
-      `
-      SELECT 
-        PhuongThucThanhToan AS type,
-        SUM(ct.DonGia * ct.SoLuong) AS value
-      FROM PHIEU_XUAT px
-      JOIN CHI_TIET_PHIEU_XUAT ct ON px.Id_PhieuXuat = ct.MaPhieuXuat
-      WHERE DATE(px.NgayXuat) BETWEEN ? AND ?
-      GROUP BY PhuongThucThanhToan
-    `,
+      `SELECT 
+         PhuongThucThanhToan AS type,
+         SUM(ct.DonGia * ct.SoLuong) AS value
+       FROM PHIEU_XUAT px
+       JOIN CHI_TIET_PHIEU_XUAT ct ON px.Id_PhieuXuat = ct.MaPhieuXuat
+       WHERE DATE(px.NgayXuat) BETWEEN ? AND ?
+       GROUP BY PhuongThucThanhToan`,
       [startDate, endDate]
     );
 
-    res.json(
-      results.map((row) => ({
-        ...row,
+    const total = results.reduce((sum, item) => sum + Number(item.value), 0);
+
+    res.json({
+      data: results.map((row) => ({
+        type: row.type,
         value: Number(row.value),
-      }))
-    );
+      })),
+      total,
+    });
   } catch (error) {
     console.error("Lỗi báo cáo phương thức:", error);
     res.status(500).json({ error: error.message });
