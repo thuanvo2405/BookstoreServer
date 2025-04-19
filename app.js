@@ -24,7 +24,6 @@ const nhanVienRoutes = require("./routes/nhanVien.routes");
 const khachHangRoutes = require("./routes/khachHang.routes");
 const baoCaoRoutes = require("./routes/baoCao.routes");
 
-app.use("/api/bao-cao", baoCaoRoutes);
 app.use("/api/hanghoa", hangHoaRoutes);
 app.use("/api/loaihanghoa", loaiHangHoaRoutes);
 app.use("/api/nhasanxuat", nhaSanXuatRoutes);
@@ -33,6 +32,7 @@ app.use("/api/hoadon", hoaDonRoutes);
 app.use("/api/chitietphieuxuat", chiTietPhieuXuatRoutes);
 app.use("/api/nhanvien", nhanVienRoutes);
 app.use("/api/khachhang", khachHangRoutes);
+app.use("/api/bao-cao", baoCaoRoutes);
 
 const storage = multer.memoryStorage(); // Thay đổi ở đây
 const upload = multer({ storage: storage });

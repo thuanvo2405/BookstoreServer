@@ -1,7 +1,6 @@
 const db = require("../config/db");
-const moment = require("moment");
 
-// 1. Tổng doanh thu và danh sách phiếu xuất
+// 1. Báo cáo tổng doanh thu
 const getDoanhThu = async (req, res) => {
   try {
     const { startDate, endDate } = req.query;
@@ -11,11 +10,11 @@ const getDoanhThu = async (req, res) => {
       SELECT 
         px.Id_PhieuXuat,
         px.NgayXuat,
-        SUM(ctpx.DonGia * ctpx.SoLuong) AS TongTien,
+        SUM(ct.DonGia * ct.SoLuong) AS TongTien,
         px.GhiChu,
         nv.HoTen AS TenNhanVien
       FROM PHIEU_XUAT px
-      LEFT JOIN CHI_TIET_PHIEU_XUAT ctpx ON px.Id_PhieuXuat = ctpx.MaPhieuXuat
+      JOIN CHI_TIET_PHIEU_XUAT ct ON px.Id_PhieuXuat = ct.MaPhieuXuat
       LEFT JOIN NHAN_VIEN nv ON px.MaNhanVien = nv.Id_NhanVien
       WHERE px.NgayXuat BETWEEN ? AND ?
       GROUP BY px.Id_PhieuXuat
@@ -23,23 +22,27 @@ const getDoanhThu = async (req, res) => {
       [startDate, endDate]
     );
 
-    const total = results.reduce((sum, item) => sum + item.TongTien, 0);
+    const total = results.reduce((acc, cur) => acc + cur.TongTien, 0) || 0;
 
     res.json({
       total,
-      phieuXuatList: results,
+      phieuXuatList: results.map((p) => ({
+        ...p,
+        TongTien: Number(p.TongTien),
+      })),
     });
   } catch (error) {
+    console.error("Lỗi báo cáo doanh thu:", error);
     res.status(500).json({ error: error.message });
   }
 };
 
-// 2. Doanh thu theo thời gian (ngày/tuần/tháng/năm)
+// 2. Doanh thu theo thời gian (cho biểu đồ)
 const getDoanhThuTheoThoiGian = async (req, res) => {
   try {
     const { startDate, endDate, type } = req.query;
-    let format, groupBy;
 
+    let format, groupBy;
     switch (type) {
       case "ngay":
         format = "%Y-%m-%d";
@@ -47,7 +50,7 @@ const getDoanhThuTheoThoiGian = async (req, res) => {
         break;
       case "tuan":
         format = "%Y-%u";
-        groupBy = "WEEK(px.NgayXuat)";
+        groupBy = "YEARWEEK(px.NgayXuat)";
         break;
       case "thang":
         format = "%Y-%m";
@@ -58,43 +61,51 @@ const getDoanhThuTheoThoiGian = async (req, res) => {
         groupBy = "YEAR(px.NgayXuat)";
         break;
       default:
-        return res.status(400).json({ error: "Invalid type" });
+        return res.status(400).json({ error: "Loại báo cáo không hợp lệ" });
     }
 
     const [results] = await db.query(
       `
       SELECT 
         DATE_FORMAT(px.NgayXuat, ?) AS date,
-        SUM(ctpx.DonGia * ctpx.SoLuong) AS value
+        SUM(ct.DonGia * ct.SoLuong) AS value
       FROM PHIEU_XUAT px
-      JOIN CHI_TIET_PHIEU_XUAT ctpx ON px.Id_PhieuXuat = ctpx.MaPhieuXuat
+      JOIN CHI_TIET_PHIEU_XUAT ct ON px.Id_PhieuXuat = ct.MaPhieuXuat
       WHERE px.NgayXuat BETWEEN ? AND ?
       GROUP BY ${groupBy}
-      ORDER BY px.NgayXuat
+      ORDER BY date
     `,
       [format, startDate, endDate]
     );
 
-    res.json(results);
+    res.json(
+      results.map((item) => ({
+        ...item,
+        value: Number(item.value),
+      }))
+    );
   } catch (error) {
+    console.error("Lỗi báo cáo theo thời gian:", error);
     res.status(500).json({ error: error.message });
   }
 };
 
-// 3. Hàng tồn kho thấp (<10)
+// 3. Hàng tồn kho thấp
 const getTonKhoThap = async (req, res) => {
   try {
     const [results] = await db.query(`
       SELECT 
         Id_HangHoa,
         TenHangHoa,
-        SoLuongTonKho 
-      FROM HANG_HOA 
+        SoLuongTonKho
+      FROM HANG_HOA
       WHERE SoLuongTonKho < 10
+      ORDER BY SoLuongTonKho ASC
     `);
 
     res.json(results);
   } catch (error) {
+    console.error("Lỗi báo cáo tồn kho:", error);
     res.status(500).json({ error: error.message });
   }
 };
@@ -109,11 +120,11 @@ const getTopHangBanChay = async (req, res) => {
       SELECT 
         hh.Id_HangHoa AS MaHangHoa,
         hh.TenHangHoa,
-        SUM(ctpx.SoLuong) AS SoLuong,
-        SUM(ctpx.DonGia * ctpx.SoLuong) AS DoanhThu
-      FROM CHI_TIET_PHIEU_XUAT ctpx
-      JOIN HANG_HOA hh ON ctpx.MaHangHoa = hh.Id_HangHoa
-      JOIN PHIEU_XUAT px ON ctpx.MaPhieuXuat = px.Id_PhieuXuat
+        SUM(ct.SoLuong) AS SoLuong,
+        SUM(ct.DonGia * ct.SoLuong) AS DoanhThu
+      FROM CHI_TIET_PHIEU_XUAT ct
+      JOIN PHIEU_XUAT px ON ct.MaPhieuXuat = px.Id_PhieuXuat
+      JOIN HANG_HOA hh ON ct.MaHangHoa = hh.Id_HangHoa
       WHERE px.NgayXuat BETWEEN ? AND ?
       GROUP BY hh.Id_HangHoa
       ORDER BY SoLuong DESC
@@ -124,11 +135,12 @@ const getTopHangBanChay = async (req, res) => {
 
     res.json(results);
   } catch (error) {
+    console.error("Lỗi top hàng bán chạy:", error);
     res.status(500).json({ error: error.message });
   }
 };
 
-// 5. Top nhân viên bán tốt
+// 5. Nhân viên bán tốt nhất
 const getNhanVienBanTotNhat = async (req, res) => {
   try {
     const { startDate, endDate, limit = 5 } = req.query;
@@ -139,10 +151,10 @@ const getNhanVienBanTotNhat = async (req, res) => {
         nv.Id_NhanVien AS MaNhanVien,
         nv.HoTen AS TenNhanVien,
         COUNT(px.Id_PhieuXuat) AS SoPhieuXuat,
-        SUM(ctpx.DonGia * ctpx.SoLuong) AS DoanhThu
+        SUM(ct.DonGia * ct.SoLuong) AS DoanhThu
       FROM PHIEU_XUAT px
+      JOIN CHI_TIET_PHIEU_XUAT ct ON px.Id_PhieuXuat = ct.MaPhieuXuat
       JOIN NHAN_VIEN nv ON px.MaNhanVien = nv.Id_NhanVien
-      JOIN CHI_TIET_PHIEU_XUAT ctpx ON px.Id_PhieuXuat = ctpx.MaPhieuXuat
       WHERE px.NgayXuat BETWEEN ? AND ?
       GROUP BY nv.Id_NhanVien
       ORDER BY DoanhThu DESC
@@ -153,6 +165,7 @@ const getNhanVienBanTotNhat = async (req, res) => {
 
     res.json(results);
   } catch (error) {
+    console.error("Lỗi nhân viên bán tốt:", error);
     res.status(500).json({ error: error.message });
   }
 };
@@ -165,14 +178,14 @@ const getDoanhThuTheoLoai = async (req, res) => {
     const [doanhThu] = await db.query(
       `
       SELECT 
-        lhh.TenLoai AS type,
-        SUM(ctpx.DonGia * ctpx.SoLuong) AS value
-      FROM CHI_TIET_PHIEU_XUAT ctpx
-      JOIN HANG_HOA hh ON ctpx.MaHangHoa = hh.Id_HangHoa
-      JOIN LOAI_HANG_HOA lhh ON hh.MaLoai = lhh.Id_Loai
-      JOIN PHIEU_XUAT px ON ctpx.MaPhieuXuat = px.Id_PhieuXuat
+        lh.TenLoai AS type,
+        SUM(ct.DonGia * ct.SoLuong) AS value
+      FROM CHI_TIET_PHIEU_XUAT ct
+      JOIN HANG_HOA hh ON ct.MaHangHoa = hh.Id_HangHoa
+      JOIN LOAI_HANG_HOA lh ON hh.MaLoai = lh.Id_Loai
+      JOIN PHIEU_XUAT px ON ct.MaPhieuXuat = px.Id_PhieuXuat
       WHERE px.NgayXuat BETWEEN ? AND ?
-      GROUP BY lhh.Id_Loai
+      GROUP BY lh.Id_Loai
     `,
       [startDate, endDate]
     );
@@ -180,20 +193,24 @@ const getDoanhThuTheoLoai = async (req, res) => {
     const [soLuong] = await db.query(
       `
       SELECT 
-        lhh.TenLoai AS type,
-        SUM(ctpx.SoLuong) AS value
-      FROM CHI_TIET_PHIEU_XUAT ctpx
-      JOIN HANG_HOA hh ON ctpx.MaHangHoa = hh.Id_HangHoa
-      JOIN LOAI_HANG_HOA lhh ON hh.MaLoai = lhh.Id_Loai
-      JOIN PHIEU_XUAT px ON ctpx.MaPhieuXuat = px.Id_PhieuXuat
+        lh.TenLoai AS type,
+        SUM(ct.SoLuong) AS value
+      FROM CHI_TIET_PHIEU_XUAT ct
+      JOIN HANG_HOA hh ON ct.MaHangHoa = hh.Id_HangHoa
+      JOIN LOAI_HANG_HOA lh ON hh.MaLoai = lh.Id_Loai
+      JOIN PHIEU_XUAT px ON ct.MaPhieuXuat = px.Id_PhieuXuat
       WHERE px.NgayXuat BETWEEN ? AND ?
-      GROUP BY lhh.Id_Loai
+      GROUP BY lh.Id_Loai
     `,
       [startDate, endDate]
     );
 
-    res.json({ doanhThuTheoLoai: doanhThu, soLuongTheoLoai: soLuong });
+    res.json({
+      doanhThuTheoLoai: doanhThu,
+      soLuongTheoLoai: soLuong,
+    });
   } catch (error) {
+    console.error("Lỗi báo cáo theo loại:", error);
     res.status(500).json({ error: error.message });
   }
 };
@@ -207,9 +224,9 @@ const getDoanhThuTheoPhuongThuc = async (req, res) => {
       `
       SELECT 
         PhuongThucThanhToan AS type,
-        SUM(ctpx.DonGia * ctpx.SoLuong) AS value
+        SUM(ct.DonGia * ct.SoLuong) AS value
       FROM PHIEU_XUAT px
-      JOIN CHI_TIET_PHIEU_XUAT ctpx ON px.Id_PhieuXuat = ctpx.MaPhieuXuat
+      JOIN CHI_TIET_PHIEU_XUAT ct ON px.Id_PhieuXuat = ct.MaPhieuXuat
       WHERE px.NgayXuat BETWEEN ? AND ?
       GROUP BY PhuongThucThanhToan
     `,
@@ -218,6 +235,7 @@ const getDoanhThuTheoPhuongThuc = async (req, res) => {
 
     res.json(results);
   } catch (error) {
+    console.error("Lỗi báo cáo phương thức:", error);
     res.status(500).json({ error: error.message });
   }
 };
