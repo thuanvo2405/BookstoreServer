@@ -41,7 +41,6 @@ const getDoanhThu = async (req, res) => {
 const getDoanhThuTheoThoiGian = async (req, res) => {
   try {
     const { startDate, endDate, type } = req.query;
-
     let format, groupBy;
     switch (type) {
       case "ngay":
@@ -63,27 +62,18 @@ const getDoanhThuTheoThoiGian = async (req, res) => {
       default:
         return res.status(400).json({ error: "Loại báo cáo không hợp lệ" });
     }
-
     const [results] = await db.query(
-      `
-      SELECT 
-        DATE_FORMAT(px.NgayXuat, ?) AS date,
-        SUM(ct.DonGia * ct.SoLuong) AS value
-      FROM PHIEU_XUAT px
-      JOIN CHI_TIET_PHIEU_XUAT ct ON px.Id_PhieuXuat = ct.MaPhieuXuat
-      WHERE px.NgayXuat BETWEEN ? AND ?
-      GROUP BY ${groupBy}
-      ORDER BY date
-    `,
+      `SELECT 
+         DATE_FORMAT(px.NgayXuat, ?) AS date,
+         SUM(ct.DonGia * ct.SoLuong) AS value
+       FROM PHIEU_XUAT px
+       JOIN CHI_TIET_PHIEU_XUAT ct ON px.Id_PhieuXuat = ct.MaPhieuXuat
+       WHERE px.NgayXuat BETWEEN ? AND ?
+       GROUP BY ${groupBy}
+       ORDER BY date`,
       [format, startDate, endDate]
     );
-
-    res.json(
-      results.map((item) => ({
-        ...item,
-        value: Number(item.value),
-      }))
-    );
+    res.json(results.map((item) => ({ ...item, value: Number(item.value) })));
   } catch (error) {
     console.error("Lỗi báo cáo theo thời gian:", error);
     res.status(500).json({ error: error.message });
@@ -174,41 +164,31 @@ const getNhanVienBanTotNhat = async (req, res) => {
 const getDoanhThuTheoLoai = async (req, res) => {
   try {
     const { startDate, endDate } = req.query;
-
     const [doanhThu] = await db.query(
-      `
-      SELECT 
-        lh.TenLoai AS type,
-        SUM(ct.DonGia * ct.SoLuong) AS value
-      FROM CHI_TIET_PHIEU_XUAT ct
-      JOIN HANG_HOA hh ON ct.MaHangHoa = hh.Id_HangHoa
-      JOIN LOAI_HANG_HOA lh ON hh.MaLoai = lh.Id_Loai
-      JOIN PHIEU_XUAT px ON ct.MaPhieuXuat = px.Id_PhieuXuat
-      WHERE px.NgayXuat BETWEEN ? AND ?
-      GROUP BY lh.Id_Loai
-    `,
+      `SELECT 
+         lh.TenLoai AS type,
+         SUM(ct.DonGia * ct.SoLuong) AS value
+       FROM CHI_TIET_PHIEU_XUAT ct
+       JOIN HANG_HOA hh ON ct.MaHangHoa = hh.Id_HangHoa
+       JOIN LOAI_HANG_HOA lh ON hh.MaLoai = lh.Id_Loai
+       JOIN PHIEU_XUAT px ON ct.MaPhieuXuat = px.Id_PhieuXuat
+       WHERE px.NgayXuat BETWEEN ? AND ?
+       GROUP BY lh.Id_Loai`,
       [startDate, endDate]
     );
-
     const [soLuong] = await db.query(
-      `
-      SELECT 
-        lh.TenLoai AS type,
-        SUM(ct.SoLuong) AS value
-      FROM CHI_TIET_PHIEU_XUAT ct
-      JOIN HANG_HOA hh ON ct.MaHangHoa = hh.Id_HangHoa
-      JOIN LOAI_HANG_HOA lh ON hh.MaLoai = lh.Id_Loai
-      JOIN PHIEU_XUAT px ON ct.MaPhieuXuat = px.Id_PhieuXuat
-      WHERE px.NgayXuat BETWEEN ? AND ?
-      GROUP BY lh.Id_Loai
-    `,
+      `SELECT 
+         lh.TenLoai AS type,
+         SUM(ct.SoLuong) AS value
+       FROM CHI_TIET_PHIEU_XUAT ct
+       JOIN HANG_HOA hh ON ct.MaHangHoa = hh.Id_HangHoa
+       JOIN LOAI_HANG_HOA lh ON hh.MaLoai = lh.Id_Loai
+       JOIN PHIEU_XUAT px ON ct.MaPhieuXuat = px.Id_PhieuXuat
+       WHERE px.NgayXuat BETWEEN ? AND ?
+       GROUP BY lh.Id_Loai`,
       [startDate, endDate]
     );
-
-    res.json({
-      doanhThuTheoLoai: doanhThu,
-      soLuongTheoLoai: soLuong,
-    });
+    res.json({ doanhThuTheoLoai: doanhThu, soLuongTheoLoai: soLuong });
   } catch (error) {
     console.error("Lỗi báo cáo theo loại:", error);
     res.status(500).json({ error: error.message });
