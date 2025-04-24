@@ -24,16 +24,15 @@ const createPhieuXuat = async (phieu, chiTiet) => {
   try {
     await conn.beginTransaction();
 
-    // 1. Tạo phiếu xuất
+    // 1. Tạo phiếu xuất (không có id_HoaDon)
     const [result] = await conn.query(
-      `INSERT INTO PHIEU_XUAT (NgayXuat, GhiChu, MaNhanVien, MaKhachHang, id_HoaDon, PhuongThucThanhToan)
-       VALUES (?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO PHIEU_XUAT (NgayXuat, GhiChu, MaNhanVien, MaKhachHang, PhuongThucThanhToan)
+       VALUES (?, ?, ?, ?, ?)`,
       [
         phieu.NgayXuat,
         phieu.GhiChu,
         phieu.MaNhanVien,
         phieu.MaKhachHang,
-        phieu.id_HoaDon,
         phieu.PhuongThucThanhToan,
       ]
     );

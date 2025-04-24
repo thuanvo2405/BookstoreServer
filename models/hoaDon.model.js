@@ -7,9 +7,9 @@ const HoaDon = {
       await conn.beginTransaction();
 
       const [result] = await conn.query(
-        `INSERT INTO HOA_DON (NgayXuat, TongTien, GhiChu)
-         VALUES (?, ?, ?)`,
-        [hoaDon.NgayXuat, hoaDon.TongTien, hoaDon.GhiChu]
+        `INSERT INTO HOA_DON (NgayXuat, TongTien, GhiChu, Id_PhieuXuat)
+         VALUES (?, ?, ?, ?)`,
+        [hoaDon.NgayXuat, hoaDon.TongTien, hoaDon.GhiChu, hoaDon.Id_PhieuXuat]
       );
 
       await conn.commit();
@@ -41,7 +41,8 @@ const HoaDon = {
         hd.Id_HoaDon,
         hd.NgayXuat,
         hd.TongTien,
-        hd.GhiChu
+        hd.GhiChu,
+        hd.Id_PhieuXuat
       FROM HOA_DON hd
       WHERE hd.Id_HoaDon = ?
     `,
@@ -52,6 +53,9 @@ const HoaDon = {
       throw new Error("Hóa đơn không tồn tại");
     }
 
+    const hoaDon = hoaDonRows[0];
+
+    // Lấy thông tin phiếu xuất liên quan
     const [phieuXuatRows] = await db.query(
       `
       SELECT 
@@ -66,11 +70,12 @@ const HoaDon = {
       FROM PHIEU_XUAT px
       LEFT JOIN NHAN_VIEN nv ON px.MaNhanVien = nv.Id_NhanVien
       LEFT JOIN KHACH_HANG kh ON px.MaKhachHang = kh.Id_KhachHang
-      WHERE px.id_HoaDon = ?
+      WHERE px.Id_PhieuXuat = ?
     `,
-      [id]
+      [hoaDon.Id_PhieuXuat]
     );
 
+    // Lấy chi tiết phiếu xuất
     const [chiTietPhieuXuatRows] = await db.query(
       `
       SELECT 
@@ -81,15 +86,12 @@ const HoaDon = {
         ctpx.SoLuong
       FROM CHI_TIET_PHIEU_XUAT ctpx
       JOIN HANG_HOA hh ON ctpx.MaHangHoa = hh.Id_HangHoa
-      WHERE ctpx.MaPhieuXuat IN (
-        SELECT Id_PhieuXuat FROM PHIEU_XUAT WHERE id_HoaDon = ?
-      )
+      WHERE ctpx.MaPhieuXuat = ?
     `,
-      [id]
+      [hoaDon.Id_PhieuXuat]
     );
 
     // Tổ chức dữ liệu
-    const hoaDon = hoaDonRows[0];
     hoaDon.phieuXuat = phieuXuatRows.map((px) => ({
       ...px,
       chiTiet: chiTietPhieuXuatRows.filter(

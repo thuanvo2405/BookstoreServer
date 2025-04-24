@@ -44,7 +44,6 @@ const getAllPhieuXuat = async (req, res) => {
         nv.HoTen AS TenNhanVien,
         px.MaKhachHang,
         kh.HoTen AS TenKhachHang,
-        px.id_HoaDon,
         px.PhuongThucThanhToan
       FROM PHIEU_XUAT px
       LEFT JOIN NHAN_VIEN nv ON px.MaNhanVien = nv.Id_NhanVien
@@ -61,11 +60,12 @@ const getAllPhieuXuat = async (req, res) => {
 
 const updatePhieuXuat = async (req, res) => {
   const { id } = req.params;
-  const { id_HoaDon } = req.body;
+  const { NgayXuat, GhiChu, MaNhanVien, MaKhachHang, PhuongThucThanhToan } =
+    req.body;
   try {
     const [result] = await db.query(
-      "UPDATE PHIEU_XUAT SET id_HoaDon = ? WHERE Id_PhieuXuat = ?",
-      [id_HoaDon, id]
+      "UPDATE PHIEU_XUAT SET NgayXuat = ?, GhiChu = ?, MaNhanVien = ?, MaKhachHang = ?, PhuongThucThanhToan = ? WHERE Id_PhieuXuat = ?",
+      [NgayXuat, GhiChu, MaNhanVien, MaKhachHang, PhuongThucThanhToan, id]
     );
     if (result.affectedRows === 0) {
       return res.status(404).json({ error: "Phiếu xuất không tồn tại" });

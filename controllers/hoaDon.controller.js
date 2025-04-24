@@ -5,9 +5,9 @@ const taoHoaDon = async (req, res) => {
     const hoaDon = req.body;
 
     // Kiểm tra dữ liệu đầu vào
-    if (!hoaDon.NgayXuat || !hoaDon.TongTien) {
+    if (!hoaDon.NgayXuat || !hoaDon.TongTien || !hoaDon.Id_PhieuXuat) {
       return res.status(400).json({
-        error: "Thiếu thông tin ngày xuất hoặc tổng tiền",
+        error: "Thiếu thông tin ngày xuất, tổng tiền hoặc Id_PhieuXuat",
       });
     }
 
