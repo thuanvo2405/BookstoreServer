@@ -122,13 +122,32 @@ exports.update = async (req, res) => {
   let connection;
   try {
     const id = req.params.id;
+
+    // Kiểm tra các trường bắt buộc
+    const requiredFields = [
+      "TenHangHoa",
+      "Id_LoaiHangHoa",
+      "Id_NhaSanXuat",
+      "GiaBan",
+      "GiaNhap",
+      "SoLuongTonKho",
+      "MoTa",
+    ];
+    for (const field of requiredFields) {
+      if (req.body[field] === undefined || req.body[field] === null) {
+        return res
+          .status(400)
+          .json({ message: `Missing required field: ${field}` });
+      }
+    }
+
     const updatedData = {
       TenHangHoa: req.body.TenHangHoa,
-      Id_LoaiHangHoa: req.body.Id_LoaiHangHoa,
-      Id_NhaSanXuat: req.body.Id_NhaSanXuat,
-      GiaBan: req.body.GiaBan,
-      GiaNhap: req.body.GiaNhap,
-      SoLuongTonKho: req.body.SoLuongTonKho,
+      Id_LoaiHangHoa: parseInt(req.body.Id_LoaiHangHoa),
+      Id_NhaSanXuat: parseInt(req.body.Id_NhaSanXuat),
+      GiaBan: parseFloat(req.body.GiaBan),
+      GiaNhap: parseFloat(req.body.GiaNhap),
+      SoLuongTonKho: parseInt(req.body.SoLuongTonKho),
       MoTa: req.body.MoTa,
     };
 

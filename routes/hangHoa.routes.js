@@ -5,6 +5,7 @@ const multer = require("multer");
 
 const storage = multer.memoryStorage();
 const upload = multer({ storage: storage });
+
 router.get("/", controller.getAll);
 /**
  * @swagger
@@ -74,7 +75,7 @@ router.post("/", upload.single("image"), controller.create);
  *         description: Hàng hóa được tạo
  */
 
-router.put("/:id", controller.update);
+router.put("/:id", upload.single("image"), controller.update);
 /**
  * @swagger
  * /api/hanghoa/{id}:
@@ -89,9 +90,27 @@ router.put("/:id", controller.update);
  *     requestBody:
  *       required: true
  *       content:
- *         application/json:
+ *         multipart/form-data:
  *           schema:
  *             type: object
+ *             properties:
+ *               TenHangHoa:
+ *                 type: string
+ *               Id_LoaiHangHoa:
+ *                 type: integer
+ *               Id_NhaSanXuat:
+ *                 type: integer
+ *               GiaBan:
+ *                 type: number
+ *               GiaNhap:
+ *                 type: number
+ *               SoLuongTonKho:
+ *                 type: integer
+ *               MoTa:
+ *                 type: string
+ *               image:
+ *                 type: string
+ *                 format: binary
  *     responses:
  *       200:
  *         description: Cập nhật thành công
