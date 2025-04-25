@@ -34,7 +34,6 @@ exports.getById = async (req, res) => {
 exports.create = async (req, res) => {
   let connection;
   try {
-    // Log dữ liệu nhận được từ request
     console.log("Dữ liệu nhận được từ frontend:", req.body);
     console.log("File nhận được từ frontend:", req.file);
 
@@ -48,7 +47,6 @@ exports.create = async (req, res) => {
       MoTa: req.body.MoTa,
     };
 
-    // Kiểm tra dữ liệu đầu vào
     const requiredFields = [
       "TenHangHoa",
       "Id_LoaiHangHoa",
@@ -67,7 +65,6 @@ exports.create = async (req, res) => {
       }
     }
 
-    // Nếu có file ảnh được gửi lên, upload ảnh lên Cloudinary
     if (req.file) {
       console.log("Bắt đầu upload ảnh lên Cloudinary...");
       console.log("Thông tin file:", {
@@ -95,7 +92,7 @@ exports.create = async (req, res) => {
         );
         stream.pipe(uploadStream);
       });
-      newHangHoa.anh_url = uploadResult.secure_url; // Lưu URL ảnh vào dữ liệu hàng hóa
+      newHangHoa.anh_url = uploadResult.secure_url;
     } else {
       console.log("Không nhận được file ảnh từ frontend");
       return res.status(400).json({ message: "Vui lòng tải lên hình ảnh!" });
@@ -125,11 +122,49 @@ exports.update = async (req, res) => {
   let connection;
   try {
     const id = req.params.id;
-    const updatedData = req.body;
+    const updatedData = {
+      TenHangHoa: req.body.TenHangHoa,
+      Id_LoaiHangHoa: req.body.Id_LoaiHangHoa,
+      Id_NhaSanXuat: req.body.Id_NhaSanXuat,
+      GiaBan: req.body.GiaBan,
+      GiaNhap: req.body.GiaNhap,
+      SoLuongTonKho: req.body.SoLuongTonKho,
+      MoTa: req.body.MoTa,
+    };
 
     const existingHangHoa = await HangHoa.getById(id);
     if (!existingHangHoa.length) {
       return res.status(404).json({ message: "Hàng hóa không tồn tại" });
+    }
+
+    if (req.file) {
+      console.log("Bắt đầu upload ảnh mới lên Cloudinary...");
+      console.log("Thông tin file:", {
+        originalname: req.file.originalname,
+        mimetype: req.file.mimetype,
+        size: req.file.size,
+      });
+
+      const stream = Readable.from(req.file.buffer);
+      const uploadResult = await new Promise((resolve, reject) => {
+        const uploadStream = cloudinary.uploader.upload_stream(
+          { folder: "hanghoa" },
+          (error, result) => {
+            if (error) {
+              console.error("Lỗi khi upload ảnh lên Cloudinary:", error);
+              reject(error);
+            } else {
+              console.log("Upload ảnh thành công:", {
+                url: result.secure_url,
+                public_id: result.public_id,
+              });
+              resolve(result);
+            }
+          }
+        );
+        stream.pipe(uploadStream);
+      });
+      updatedData.anh_url = uploadResult.secure_url;
     }
 
     connection = await db.getConnection();
@@ -139,8 +174,9 @@ exports.update = async (req, res) => {
       throw new Error("Hàng hóa không tồn tại");
     }
 
-    res.json({ message: "Cập nhật hàng hóa thành công" });
+    res.json({ message: "Cập nhật hàng hóa thành công", ...updatedData });
   } catch (error) {
+    console.error("Lỗi trong hàm update:", error);
     res.status(500).json({
       message: "Lỗi khi cập nhật hàng hóa",
       error: error.message,
