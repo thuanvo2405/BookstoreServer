@@ -12,3 +12,4 @@ router.get("/", getAllHoaDon);
 router.get("/:id", getHoaDonDetail);
 router.delete("/:id", xoaHoaDon);
 module.exports = router;
+  

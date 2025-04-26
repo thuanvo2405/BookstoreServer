@@ -101,26 +101,25 @@ const HoaDon = {
 
     return hoaDon;
   },
-};
+  deleteById: async (id) => {
+    const conn = await db.getConnection();
+    try {
+      await conn.beginTransaction();
 
-deleteById: async (id) => {
-  const conn = await db.getConnection();
-  try {
-    await conn.beginTransaction();
+      const [result] = await conn.query(
+        `DELETE FROM HOA_DON WHERE Id_HoaDon = ?`,
+        [id]
+      );
 
-    const [result] = await conn.query(
-      `DELETE FROM HOA_DON WHERE Id_HoaDon = ?`,
-      [id]
-    );
-
-    await conn.commit();
-    return result.affectedRows > 0;
-  } catch (err) {
-    await conn.rollback();
-    throw err;
-  } finally {
-    conn.release();
-  }
+      await conn.commit();
+      return result.affectedRows > 0;
+    } catch (err) {
+      await conn.rollback();
+      throw err;
+    } finally {
+      conn.release();
+    }
+  },
 };
 
 module.exports = HoaDon;
