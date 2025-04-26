@@ -49,4 +49,20 @@ const getHoaDonDetail = async (req, res) => {
   }
 };
 
-module.exports = { taoHoaDon, getAllHoaDon, getHoaDonDetail };
+const xoaHoaDon = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const success = await HoaDon.deleteById(id);
+
+    if (!success) {
+      return res.status(404).json({ error: "Không tìm thấy hóa đơn để xóa" });
+    }
+
+    return res.status(200).json({ message: "Xóa hóa đơn thành công" });
+  } catch (err) {
+    console.error("Lỗi khi xóa hóa đơn:", err);
+    return res.status(500).json({ error: "Lỗi server khi xóa hóa đơn" });
+  }
+};
+
+module.exports = { taoHoaDon, getAllHoaDon, getHoaDonDetail, xoaHoaDon };
